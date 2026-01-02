@@ -1,5 +1,7 @@
 #![no_std]
 
+pub mod registers;
+
 /// TMC4671 expected chip identification value.
 /// ASCII encoding of "4671".
 pub const CHIP_ID: u32 = 0x3436_3731;
