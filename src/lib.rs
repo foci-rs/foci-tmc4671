@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod registers;
+pub mod spi;
 
 /// TMC4671 expected chip identification value.
 /// ASCII encoding of "4671".
