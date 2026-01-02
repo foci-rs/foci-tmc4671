@@ -466,6 +466,352 @@ pub const INTERIM_PWM_UV: SubRegister = SubRegister::new(0x6E, 0x6F, 18);
 /// ADC current samples I1 and I0.
 pub const INTERIM_ADC_I1_I0: SubRegister = SubRegister::new(0x6E, 0x6F, 19);
 
+// ---- Motion mode and motor type enums ----
+
+/// TMC4671 motion modes (MODE_RAMP_MODE_MOTION register, bits [7:0]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+#[repr(u8)]
+pub enum MotionMode {
+    /// Motor stopped; no output drive.
+    Stopped = 0,
+    /// Torque control mode.
+    Torque = 1,
+    /// Velocity control mode.
+    Velocity = 2,
+    /// Position control mode.
+    Position = 3,
+    /// PRBS flux excitation (identification).
+    PrbsFlux = 4,
+    /// PRBS torque excitation (identification).
+    PrbsTorque = 5,
+    /// PRBS velocity excitation (identification).
+    PrbsVelocity = 6,
+    /// PRBS position excitation (identification).
+    PrbsPosition = 7,
+    /// External UQ/UD voltage drive mode.
+    UqUdExt = 8,
+}
+
+/// TMC4671 motor types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+#[repr(u8)]
+pub enum MotorType {
+    /// No motor configured.
+    None = 0,
+    /// DC motor.
+    Dc = 1,
+    /// Two-phase stepper motor.
+    TwoPhase = 2,
+    /// Three-phase BLDC/PMSM motor.
+    ThreePhase = 3,
+}
+
+// ---- Bitfield struct definitions ----
+
+use bitfield_struct::bitfield;
+
+/// MOTOR_TYPE_N_POLE_PAIRS register (0x1B).
+///
+/// Configures the motor type and number of electrical pole pairs.
+#[bitfield(u32)]
+pub struct MotorTypeNPolePairs {
+    /// Number of electrical pole pairs.
+    #[bits(16)]
+    pub n_pole_pairs: u16,
+    /// Motor type selection. Cast to/from [`MotorType`].
+    #[bits(8)]
+    pub motor_type: u8,
+    #[bits(8)]
+    _reserved: u8,
+}
+
+/// PWM_BBM_H_BBM_L register (0x19).
+///
+/// Break-before-make dead-time for high-side and low-side gate drivers.
+#[bitfield(u32)]
+pub struct PwmBbmHBbmL {
+    /// Low-side BBM dead-time in PWM clock cycles.
+    #[bits(8)]
+    pub pwm_bbm_l: u8,
+    /// High-side BBM dead-time in PWM clock cycles.
+    #[bits(8)]
+    pub pwm_bbm_h: u8,
+    #[bits(16)]
+    _reserved: u16,
+}
+
+/// PWM_SV_CHOP register (0x1A).
+///
+/// Space-vector and chopper PWM configuration.
+#[bitfield(u32)]
+pub struct PwmSvChop {
+    /// Chopper mode selection.
+    #[bits(8)]
+    pub pwm_chop: u8,
+    /// Space-vector PWM enable.
+    #[bits(1)]
+    pub pwm_sv: bool,
+    #[bits(23)]
+    _reserved: u32,
+}
+
+/// ADC_I0_SCALE_OFFSET register (0x09).
+///
+/// Current sense amplifier I0 calibration: offset and gain scale.
+#[bitfield(u32)]
+pub struct AdcI0ScaleOffset {
+    /// ADC I0 offset correction (unsigned, subtracted before scaling).
+    #[bits(16)]
+    pub offset: u16,
+    /// ADC I0 gain scale factor (signed Q1.15 format).
+    #[bits(16)]
+    pub scale: i16,
+}
+
+/// ADC_I1_SCALE_OFFSET register (0x08).
+///
+/// Current sense amplifier I1 calibration: offset and gain scale.
+#[bitfield(u32)]
+pub struct AdcI1ScaleOffset {
+    /// ADC I1 offset correction (unsigned, subtracted before scaling).
+    #[bits(16)]
+    pub offset: u16,
+    /// ADC I1 gain scale factor (signed Q1.15 format).
+    #[bits(16)]
+    pub scale: i16,
+}
+
+/// MODE_RAMP_MODE_MOTION register (0x63).
+///
+/// Selects the active motion mode and PID sampling configuration.
+#[bitfield(u32)]
+pub struct ModeRampModeMotion {
+    /// Active motion mode. Cast to/from [`MotionMode`].
+    #[bits(8)]
+    pub mode_motion: u8,
+    #[bits(8)]
+    _reserved1: u8,
+    /// Feed-forward mode selection.
+    #[bits(8)]
+    pub mode_ff: u8,
+    /// PID sample rate divider (0 = every cycle).
+    #[bits(7)]
+    pub mode_pid_smpl: u8,
+    /// PID type: false = standard, true = advanced.
+    #[bits(1)]
+    pub mode_pid_type: bool,
+}
+
+/// ABN_DECODER_MODE register (0x25).
+///
+/// ABN incremental encoder interface configuration.
+#[bitfield(u32)]
+pub struct AbnDecoderMode {
+    /// Invert A channel polarity.
+    #[bits(1)]
+    pub abn_apol: bool,
+    /// Invert B channel polarity.
+    #[bits(1)]
+    pub abn_bpol: bool,
+    /// Invert N (index) channel polarity.
+    #[bits(1)]
+    pub abn_npol: bool,
+    /// Use ABN count as N signal.
+    #[bits(1)]
+    pub abn_use_abn_as_n: bool,
+    #[bits(4)]
+    _reserved1: u8,
+    /// Clear encoder count on N pulse.
+    #[bits(1)]
+    pub abn_cln: bool,
+    #[bits(3)]
+    _reserved2: u8,
+    /// Reverse counting direction.
+    #[bits(1)]
+    pub abn_direction: bool,
+    #[bits(19)]
+    _reserved3: u32,
+}
+
+/// PID gain register layout — shared by flux, torque, velocity, and position loops.
+///
+/// Used for registers PID_FLUX_P_FLUX_I (0x54), PID_TORQUE_P_TORQUE_I (0x56),
+/// PID_VELOCITY_P_VELOCITY_I (0x58), and PID_POSITION_P_POSITION_I (0x5A).
+#[bitfield(u32)]
+pub struct PidGains {
+    /// Integral gain.
+    #[bits(16)]
+    pub i_gain: u16,
+    /// Proportional gain.
+    #[bits(16)]
+    pub p_gain: u16,
+}
+
+/// STATUS_FLAGS (0x7C) and STATUS_MASK (0x7D) register layout.
+///
+/// Both registers share this bit layout. Read STATUS_FLAGS for current fault state;
+/// write STATUS_MASK to enable interrupt generation per flag.
+#[bitfield(u32)]
+pub struct StatusFlags {
+    /// Position PID target limit reached.
+    #[bits(1)]
+    pub pid_x_target_limit: bool,
+    #[bits(1)]
+    _reserved0: bool,
+    /// Position PID error sum limit reached.
+    #[bits(1)]
+    pub pid_x_errsum_limit: bool,
+    /// Position PID output limit reached.
+    #[bits(1)]
+    pub pid_x_output_limit: bool,
+    /// Velocity PID target limit reached.
+    #[bits(1)]
+    pub pid_v_target_limit: bool,
+    #[bits(1)]
+    _reserved1: bool,
+    /// Velocity PID error sum limit reached.
+    #[bits(1)]
+    pub pid_v_errsum_limit: bool,
+    /// Velocity PID output limit reached.
+    #[bits(1)]
+    pub pid_v_output_limit: bool,
+    /// Flux PID target limit reached.
+    #[bits(1)]
+    pub pid_id_target_limit: bool,
+    #[bits(1)]
+    _reserved2: bool,
+    /// Flux PID error sum limit reached.
+    #[bits(1)]
+    pub pid_id_errsum_limit: bool,
+    /// Flux PID output limit reached.
+    #[bits(1)]
+    pub pid_id_output_limit: bool,
+    /// Torque PID target limit reached.
+    #[bits(1)]
+    pub pid_iq_target_limit: bool,
+    #[bits(1)]
+    _reserved3: bool,
+    /// Torque PID error sum limit reached.
+    #[bits(1)]
+    pub pid_iq_errsum_limit: bool,
+    /// Torque PID output limit reached.
+    #[bits(1)]
+    pub pid_iq_output_limit: bool,
+    /// Inverse Park UD circular limit active.
+    #[bits(1)]
+    pub ipark_cirlim_limit_u_d: bool,
+    /// Inverse Park UQ circular limit active.
+    #[bits(1)]
+    pub ipark_cirlim_limit_u_q: bool,
+    /// Inverse Park UR circular limit active.
+    #[bits(1)]
+    pub ipark_cirlim_limit_u_r: bool,
+    /// PLL not locked.
+    #[bits(1)]
+    pub not_pll_locked: bool,
+    /// Reference switch R triggered.
+    #[bits(1)]
+    pub ref_sw_r: bool,
+    /// Reference switch H triggered.
+    #[bits(1)]
+    pub ref_sw_h: bool,
+    /// Reference switch L triggered.
+    #[bits(1)]
+    pub ref_sw_l: bool,
+    #[bits(1)]
+    _reserved5: bool,
+    /// PWM duty cycle at minimum.
+    #[bits(1)]
+    pub pwm_min: bool,
+    /// PWM duty cycle at maximum.
+    #[bits(1)]
+    pub pwm_max: bool,
+    /// ADC current measurement clipped.
+    #[bits(1)]
+    pub adc_i_clipped: bool,
+    /// Analog encoder input clipped.
+    #[bits(1)]
+    pub aenc_clipped: bool,
+    /// Encoder N pulse detected.
+    #[bits(1)]
+    pub enc_n: bool,
+    /// Encoder 2 N pulse detected.
+    #[bits(1)]
+    pub enc_2_n: bool,
+    /// Analog encoder N signal detected.
+    #[bits(1)]
+    pub aenc_n: bool,
+    #[bits(1)]
+    _reserved6: bool,
+}
+
+/// VELOCITY_SELECTION register (0x50).
+///
+/// Selects which feedback source drives velocity control and the velocity meter.
+#[bitfield(u32)]
+pub struct VelocitySelection {
+    /// Velocity feedback source for PID control.
+    #[bits(8)]
+    pub velocity_selection: u8,
+    /// Velocity meter source for monitoring.
+    #[bits(8)]
+    pub velocity_meter_selection: u8,
+    #[bits(16)]
+    _reserved: u16,
+}
+
+/// UQ_UD_EXT register (0x24).
+///
+/// External voltage vector applied in UQ_UD_EXT motion mode.
+#[bitfield(u32)]
+pub struct UqUdExt {
+    /// D-axis voltage component (signed).
+    #[bits(16)]
+    pub ud_ext: i16,
+    /// Q-axis voltage component (signed).
+    #[bits(16)]
+    pub uq_ext: i16,
+}
+
+/// PID_TORQUE_FLUX_TARGET register (0x64).
+///
+/// Target setpoints for torque and flux current controllers.
+#[bitfield(u32)]
+pub struct PidTorqueFluxTarget {
+    /// Flux (D-axis) current target (signed).
+    #[bits(16)]
+    pub pid_flux_target: i16,
+    /// Torque (Q-axis) current target (signed).
+    #[bits(16)]
+    pub pid_torque_target: i16,
+}
+
+/// PID_TORQUE_FLUX_ACTUAL register (0x69).
+///
+/// Measured torque and flux current feedback values.
+#[bitfield(u32)]
+pub struct PidTorqueFluxActual {
+    /// Flux (D-axis) current actual value (signed).
+    #[bits(16)]
+    pub pid_flux_actual: i16,
+    /// Torque (Q-axis) current actual value (signed).
+    #[bits(16)]
+    pub pid_torque_actual: i16,
+}
+
+/// ABN_DECODER_PHI_E_PHI_M_OFFSET register (0x29).
+///
+/// Angular offset corrections applied to ABN encoder mechanical and electrical angles.
+#[bitfield(u32)]
+pub struct AbnDecoderPhiOffset {
+    /// Mechanical angle offset (signed, applied to PHI_M).
+    #[bits(16)]
+    pub phi_m_offset: i16,
+    /// Electrical angle offset (signed, applied to PHI_E).
+    #[bits(16)]
+    pub phi_e_offset: i16,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -525,5 +871,84 @@ mod tests {
         assert_eq!(INTERIM_PIDIN_TARGET_TORQUE.addr.addr(), 0x6F);
         assert_eq!(INTERIM_PIDIN_TARGET_TORQUE.sub_addr, 0);
         assert_eq!(INTERIM_ADC_I1_I0.sub_addr, 19);
+    }
+
+    #[test]
+    fn motor_type_pole_pairs_round_trip() {
+        let reg = MotorTypeNPolePairs::new()
+            .with_motor_type(MotorType::TwoPhase as u8)
+            .with_n_pole_pairs(50);
+        let raw: u32 = reg.into();
+        let decoded = MotorTypeNPolePairs::from(raw);
+        assert_eq!(decoded.motor_type(), MotorType::TwoPhase as u8);
+        assert_eq!(decoded.n_pole_pairs(), 50);
+    }
+
+    #[test]
+    fn status_flags_adc_clipped() {
+        let flags = StatusFlags::from(1 << 26);
+        assert!(flags.adc_i_clipped());
+        assert!(!flags.pwm_max());
+        assert!(!flags.pid_x_target_limit());
+    }
+
+    #[test]
+    fn status_flags_not_pll_locked() {
+        let flags = StatusFlags::from(1 << 19);
+        assert!(flags.not_pll_locked());
+        assert!(!flags.adc_i_clipped());
+    }
+
+    #[test]
+    fn pid_gains_round_trip() {
+        let gains = PidGains::new().with_p_gain(1234).with_i_gain(5678);
+        let raw: u32 = gains.into();
+        let decoded = PidGains::from(raw);
+        assert_eq!(decoded.p_gain(), 1234);
+        assert_eq!(decoded.i_gain(), 5678);
+    }
+
+    #[test]
+    fn mode_motion_fields() {
+        let mode = ModeRampModeMotion::new()
+            .with_mode_motion(MotionMode::Position as u8)
+            .with_mode_pid_type(true);
+        let raw: u32 = mode.into();
+        let decoded = ModeRampModeMotion::from(raw);
+        assert_eq!(decoded.mode_motion(), MotionMode::Position as u8);
+        assert!(decoded.mode_pid_type());
+        assert_eq!(decoded.mode_ff(), 0);
+    }
+
+    #[test]
+    fn abn_decoder_mode_direction() {
+        let mode = AbnDecoderMode::new()
+            .with_abn_direction(true)
+            .with_abn_apol(true);
+        let raw: u32 = mode.into();
+        let decoded = AbnDecoderMode::from(raw);
+        assert!(decoded.abn_direction());
+        assert!(decoded.abn_apol());
+        assert!(!decoded.abn_bpol());
+    }
+
+    #[test]
+    fn uq_ud_ext_signed() {
+        let ext = UqUdExt::new().with_uq_ext(-1000).with_ud_ext(500);
+        let raw: u32 = ext.into();
+        let decoded = UqUdExt::from(raw);
+        assert_eq!(decoded.uq_ext(), -1000);
+        assert_eq!(decoded.ud_ext(), 500);
+    }
+
+    #[test]
+    fn pid_torque_flux_target_signed() {
+        let target = PidTorqueFluxTarget::new()
+            .with_pid_torque_target(-2000)
+            .with_pid_flux_target(100);
+        let raw: u32 = target.into();
+        let decoded = PidTorqueFluxTarget::from(raw);
+        assert_eq!(decoded.pid_torque_target(), -2000);
+        assert_eq!(decoded.pid_flux_target(), 100);
     }
 }
