@@ -951,4 +951,26 @@ mod tests {
         assert_eq!(decoded.pid_torque_target(), -2000);
         assert_eq!(decoded.pid_flux_target(), 100);
     }
+
+    #[test]
+    fn pid_torque_flux_target_flux_is_low_half() {
+        // Datasheet 0x64: PID_FLUX_TARGET = s16(15:0), PID_TORQUE_TARGET = s16(31:16)
+        // For D-axis alignment, flux target must be in bits[15:0].
+        let target = PidTorqueFluxTarget::new()
+            .with_pid_flux_target(1000)
+            .with_pid_torque_target(0);
+        let raw: u32 = target.into();
+        // Flux in low 16 bits, torque (0) in high 16 bits
+        assert_eq!(raw & 0xFFFF, 1000u32, "flux target must be in bits[15:0]");
+        assert_eq!(raw >> 16, 0, "torque target must be in bits[31:16]");
+
+        // Compare with UQ_UD_EXT layout — UD is also in bits[15:0]
+        let uq_ud = UqUdExt::new().with_ud_ext(1000).with_uq_ext(0);
+        let uq_ud_raw: u32 = uq_ud.into();
+        assert_eq!(
+            raw & 0xFFFF,
+            uq_ud_raw & 0xFFFF,
+            "flux target and UD_EXT must occupy the same bit position (D-axis)"
+        );
+    }
 }
