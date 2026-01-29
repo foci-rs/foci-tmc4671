@@ -34,6 +34,11 @@ where
         Self { spi }
     }
 
+    /// Consume the driver and return the underlying SPI device.
+    pub fn into_inner(self) -> SPI {
+        self.spi
+    }
+
     /// Read a 32-bit register value.
     ///
     /// Sends a 5-byte frame with the register address in byte 0 (bit 7 clear)
