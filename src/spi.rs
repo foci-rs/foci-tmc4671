@@ -1,4 +1,4 @@
-use embedded_hal_async::spi::SpiDevice;
+use embedded_hal_async::spi::{Operation, SpiDevice};
 
 use crate::registers::{Register, SubRegister};
 
@@ -41,12 +41,20 @@ where
 
     /// Read a 32-bit register value.
     ///
-    /// Sends a 5-byte frame with the register address in byte 0 (bit 7 clear)
-    /// and returns the big-endian 32-bit value from bytes 1–4.
+    /// Sends the address byte, pauses 500ns (required by TMC4671-LA for
+    /// SPI reads above 2 MHz, datasheet Table 2 tSCKpause), then clocks
+    /// out 4 data bytes. CS stays asserted across the full transaction.
     pub async fn read_register(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
-        let mut buf = [reg.addr(), 0, 0, 0, 0];
-        self.spi.transfer_in_place(&mut buf).await?;
-        Ok(u32::from_be_bytes([buf[1], buf[2], buf[3], buf[4]]))
+        let addr = [reg.addr()];
+        let mut data = [0u8; 4];
+        self.spi
+            .transaction(&mut [
+                Operation::Write(&addr),
+                Operation::DelayNs(500),
+                Operation::Read(&mut data),
+            ])
+            .await?;
+        Ok(u32::from_be_bytes(data))
     }
 
     /// Write a 32-bit register value.
