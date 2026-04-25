@@ -1,15 +1,16 @@
 [package]
 name = "foci-tmc4671"
 version = "0.1.0"
-edition.workspace = true
-license.workspace = true
+edition = "2024"
+license = "MIT OR Apache-2.0"
 description = "TMC4671 FOC servo controller driver"
+repository = "https://github.com/foci-rs/foci-tmc4671"
 
 [dependencies]
-bitfield-struct.workspace = true
-defmt.workspace = true
-embedded-hal.workspace = true
-embedded-hal-async.workspace = true
+bitfield-struct = "0.9"
+defmt = "1.0"
+embedded-hal = "1.0"
+embedded-hal-async = "1.0"
 
 [dev-dependencies]
 embedded-hal-mock = { version = "0.11", features = ["eh1"] }
