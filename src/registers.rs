@@ -468,7 +468,7 @@ pub const INTERIM_ADC_I1_I0: SubRegister = SubRegister::new(0x6E, 0x6F, 19);
 
 // ---- Motion mode and motor type enums ----
 
-/// TMC4671 motion modes (MODE_RAMP_MODE_MOTION register, bits [7:0]).
+/// TMC4671 motion modes (MODE_RAMP_MODE_MOTION register, bits `[7:0]`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 #[repr(u8)]
 pub enum MotionMode {
