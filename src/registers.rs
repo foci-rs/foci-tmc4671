@@ -706,9 +706,9 @@ pub struct StatusFlags {
     /// Inverse Park UR circular limit active.
     #[bits(1)]
     pub ipark_cirlim_limit_u_r: bool,
-    /// PLL not locked.
+    /// Reserved by TMC4671-LA Rev 1, 02/2024 Table 30.
     #[bits(1)]
-    pub not_pll_locked: bool,
+    _reserved4: bool,
     /// Reference switch R triggered.
     #[bits(1)]
     pub ref_sw_r: bool,
@@ -893,10 +893,10 @@ mod tests {
     }
 
     #[test]
-    fn status_flags_not_pll_locked() {
+    fn status_flags_bit19_is_reserved() {
         let flags = StatusFlags::from(1 << 19);
-        assert!(flags.not_pll_locked());
         assert!(!flags.adc_i_clipped());
+        assert!(!flags.aenc_clipped());
     }
 
     #[test]
