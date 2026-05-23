@@ -465,6 +465,8 @@ pub const INTERIM_PWM_WY_UX: SubRegister = SubRegister::new(0x6E, 0x6F, 17);
 pub const INTERIM_PWM_UV: SubRegister = SubRegister::new(0x6E, 0x6F, 18);
 /// ADC current samples I1 and I0.
 pub const INTERIM_ADC_I1_I0: SubRegister = SubRegister::new(0x6E, 0x6F, 19);
+/// Packed torque target and actual current monitor.
+pub const INTERIM_PID_TORQUE_TARGET_TORQUE_ACTUAL: SubRegister = SubRegister::new(0x6E, 0x6F, 21);
 
 // ---- Motion mode and motor type enums ----
 
