@@ -467,6 +467,10 @@ pub const INTERIM_PWM_UV: SubRegister = SubRegister::new(0x6E, 0x6F, 18);
 pub const INTERIM_ADC_I1_I0: SubRegister = SubRegister::new(0x6E, 0x6F, 19);
 /// Packed torque target and actual current monitor.
 pub const INTERIM_PID_TORQUE_TARGET_TORQUE_ACTUAL: SubRegister = SubRegister::new(0x6E, 0x6F, 21);
+/// Velocity feedforward monitor.
+pub const INTERIM_FF_VELOCITY: SubRegister = SubRegister::new(0x6E, 0x6F, 27);
+/// Torque feedforward monitor.
+pub const INTERIM_FF_TORQUE: SubRegister = SubRegister::new(0x6E, 0x6F, 28);
 
 // ---- Motion mode and motor type enums ----
 
@@ -873,6 +877,8 @@ mod tests {
         assert_eq!(INTERIM_PIDIN_TARGET_TORQUE.addr.addr(), 0x6F);
         assert_eq!(INTERIM_PIDIN_TARGET_TORQUE.sub_addr, 0);
         assert_eq!(INTERIM_ADC_I1_I0.sub_addr, 19);
+        assert_eq!(INTERIM_FF_VELOCITY.sub_addr, 27);
+        assert_eq!(INTERIM_FF_TORQUE.sub_addr, 28);
     }
 
     #[test]
