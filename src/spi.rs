@@ -47,6 +47,7 @@ impl<E> From<E> for SpiError<E> {
 /// on real hardware, immediate in test mocks).
 pub struct Tmc4671Spi<SPI> {
     spi: SPI,
+    retry_policy: RetryPolicy,
 }
 
 impl<SPI, E> Tmc4671Spi<SPI>
@@ -55,7 +56,16 @@ where
 {
     /// Creates a new `Tmc4671Spi` wrapping the given SPI device.
     pub fn new(spi: SPI) -> Self {
-        Self { spi }
+        Self {
+            spi,
+            retry_policy: RetryPolicy::default(),
+        }
+    }
+
+    /// Override the retry policy. Affects only the `*_verified` methods.
+    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.retry_policy = policy;
+        self
     }
 
     /// Consume the driver and return the underlying SPI device.
@@ -138,6 +148,22 @@ mod tests {
     use super::*;
     use crate::registers;
 
+    #[derive(Default)]
+    struct MockSpiBus;
+
+    impl embedded_hal_async::spi::ErrorType for MockSpiBus {
+        type Error = core::convert::Infallible;
+    }
+
+    impl embedded_hal_async::spi::SpiDevice<u8> for MockSpiBus {
+        async fn transaction(
+            &mut self,
+            _ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn read_frame_address_bit7_clear() {
         let reg = registers::PID_POSITION_TARGET;
@@ -196,5 +222,12 @@ mod tests {
     fn retry_policy_production_is_three_attempts() {
         let policy = RetryPolicy::production();
         assert_eq!(policy.max_attempts, 3);
+    }
+
+    #[test]
+    fn with_retry_policy_sets_field() {
+        let spi: Tmc4671Spi<MockSpiBus> =
+            Tmc4671Spi::new(MockSpiBus::default()).with_retry_policy(RetryPolicy::production());
+        assert_eq!(spi.retry_policy.max_attempts, 3);
     }
 }
