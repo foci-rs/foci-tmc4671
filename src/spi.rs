@@ -128,6 +128,31 @@ where
         })
     }
 
+    /// Read a register and compare against `expected`. Retries on mismatch
+    /// up to `self.retry_policy.max_attempts` total attempts.
+    ///
+    /// Returns [`SpiError::VerifyFailed`] when retries are exhausted, carrying
+    /// the most recent mismatched read.
+    pub async fn read_register_verified(
+        &mut self,
+        reg: Register,
+        expected: u32,
+    ) -> Result<u32, SpiError<E>> {
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut last_actual: u32 = 0;
+        for _ in 0..max {
+            let actual = self.read_register(reg).await?;
+            if actual == expected {
+                return Ok(actual);
+            }
+            last_actual = actual;
+        }
+        Err(SpiError::VerifyFailed {
+            expected,
+            actual: last_actual,
+        })
+    }
+
     /// Read a sub-register (write selector address first, then read data).
     ///
     /// Writes `sub.sub_addr` to `sub.addr`, then reads `sub.data`.
@@ -306,6 +331,44 @@ mod tests {
             let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
             let result = spi
                 .write_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            match result {
+                Err(SpiError::VerifyFailed { expected, actual }) => {
+                    assert_eq!(expected, 0x1234_5678);
+                    assert_eq!(actual, 0xDEAD_BEEF);
+                }
+                other => panic!("expected VerifyFailed, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
+    fn read_verified_succeeds_after_transient_mismatches() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                wrong_for_attempts: 2,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+            let result = spi
+                .read_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            assert_eq!(result, Ok(0x1234_5678));
+        });
+    }
+
+    #[test]
+    fn read_verified_exhausts_and_returns_verify_failed() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                wrong_for_attempts: 99,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+            let result = spi
+                .read_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
                 .await;
             match result {
                 Err(SpiError::VerifyFailed { expected, actual }) => {
