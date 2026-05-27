@@ -102,24 +102,30 @@ where
         Ok(())
     }
 
-    /// Write a register and verify by reading back.
+    /// Write a register and verify by reading back. Retries on mismatch up to
+    /// `self.retry_policy.max_attempts` total attempts (1 = no retry).
     ///
-    /// Returns [`SpiError::VerifyFailed`] if the read-back value does not match
-    /// the written value.
+    /// Returns [`SpiError::VerifyFailed`] when retries are exhausted, carrying
+    /// the most recent mismatched read-back.
     pub async fn write_register_verified(
         &mut self,
         reg: Register,
         value: u32,
     ) -> Result<(), SpiError<E>> {
-        self.write_register(reg, value).await?;
-        let actual = self.read_register(reg).await?;
-        if actual != value {
-            return Err(SpiError::VerifyFailed {
-                expected: value,
-                actual,
-            });
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut last_actual: u32 = 0;
+        for _ in 0..max {
+            self.write_register(reg, value).await?;
+            let actual = self.read_register(reg).await?;
+            if actual == value {
+                return Ok(());
+            }
+            last_actual = actual;
         }
-        Ok(())
+        Err(SpiError::VerifyFailed {
+            expected: value,
+            actual: last_actual,
+        })
     }
 
     /// Read a sub-register (write selector address first, then read data).
@@ -160,6 +166,44 @@ mod tests {
             &mut self,
             _ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
         ) -> Result<(), Self::Error> {
+            Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct VerifyMock {
+        attempts: core::cell::Cell<u8>,
+        /// Number of read-back attempts that should return the wrong value.
+        wrong_for_attempts: u8,
+        expected: u32,
+    }
+
+    impl embedded_hal_async::spi::ErrorType for VerifyMock {
+        type Error = core::convert::Infallible;
+    }
+
+    impl embedded_hal_async::spi::SpiDevice<u8> for VerifyMock {
+        async fn transaction(
+            &mut self,
+            ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            let is_read = ops
+                .iter()
+                .any(|op| matches!(op, embedded_hal_async::spi::Operation::Read(_)));
+            if is_read {
+                let attempt = self.attempts.get();
+                self.attempts.set(attempt + 1);
+                let value = if attempt < self.wrong_for_attempts {
+                    0xDEAD_BEEF
+                } else {
+                    self.expected
+                };
+                for op in ops.iter_mut() {
+                    if let embedded_hal_async::spi::Operation::Read(buf) = op {
+                        buf.copy_from_slice(&value.to_be_bytes());
+                    }
+                }
+            }
             Ok(())
         }
     }
@@ -229,5 +273,47 @@ mod tests {
         let spi: Tmc4671Spi<MockSpiBus> =
             Tmc4671Spi::new(MockSpiBus::default()).with_retry_policy(RetryPolicy::production());
         assert_eq!(spi.retry_policy.max_attempts, 3);
+    }
+
+    #[test]
+    fn write_verified_succeeds_after_transient_mismatches() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                wrong_for_attempts: 2,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+            let result = spi
+                .write_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            assert!(
+                result.is_ok(),
+                "expected verified write to succeed on attempt 3, got {:?}",
+                result
+            );
+        });
+    }
+
+    #[test]
+    fn write_verified_exhausts_and_returns_verify_failed() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                wrong_for_attempts: 99,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+            let result = spi
+                .write_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            match result {
+                Err(SpiError::VerifyFailed { expected, actual }) => {
+                    assert_eq!(expected, 0x1234_5678);
+                    assert_eq!(actual, 0xDEAD_BEEF);
+                }
+                other => panic!("expected VerifyFailed, got {:?}", other),
+            }
+        });
     }
 }
