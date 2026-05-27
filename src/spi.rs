@@ -11,6 +11,30 @@ pub enum SpiError<E> {
     VerifyFailed { expected: u32, actual: u32 },
 }
 
+/// SPI retry behaviour. Applied only to the `*_verified` methods on
+/// [`Tmc4671Spi`]. Plain `read_register` and `write_register` are not
+/// affected by the policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryPolicy {
+    /// Total attempts including the first. Must be at least 1.
+    pub max_attempts: u8,
+}
+
+impl Default for RetryPolicy {
+    /// Library default: single attempt, identical to pre-spec behaviour.
+    /// Boards opt into retries via [`Tmc4671Spi::with_retry_policy`].
+    fn default() -> Self {
+        Self { max_attempts: 1 }
+    }
+}
+
+impl RetryPolicy {
+    /// Production policy used by both board binaries.
+    pub const fn production() -> Self {
+        Self { max_attempts: 3 }
+    }
+}
+
 impl<E> From<E> for SpiError<E> {
     fn from(e: E) -> Self {
         SpiError::Bus(e)
@@ -160,5 +184,17 @@ mod tests {
             }
             _ => panic!("wrong variant"),
         }
+    }
+
+    #[test]
+    fn retry_policy_default_is_single_attempt() {
+        let policy = RetryPolicy::default();
+        assert_eq!(policy.max_attempts, 1);
+    }
+
+    #[test]
+    fn retry_policy_production_is_three_attempts() {
+        let policy = RetryPolicy::production();
+        assert_eq!(policy.max_attempts, 3);
     }
 }
