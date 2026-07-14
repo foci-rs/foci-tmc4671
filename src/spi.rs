@@ -174,6 +174,40 @@ where
     }
 }
 
+impl<SPI, E> Tmc4671Spi<SPI>
+where
+    SPI: embedded_hal::spi::SpiDevice<u8, Error = E>,
+{
+    fn read_register_blocking(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
+        let addr = [reg.addr()];
+        let mut data = [0u8; 4];
+        embedded_hal::spi::SpiDevice::transaction(
+            &mut self.spi,
+            &mut [
+                embedded_hal::spi::Operation::Write(&addr),
+                embedded_hal::spi::Operation::DelayNs(500),
+                embedded_hal::spi::Operation::Read(&mut data),
+            ],
+        )?;
+        Ok(u32::from_be_bytes(data))
+    }
+
+    /// Read two registers synchronously as separate CS-framed transactions.
+    ///
+    /// This is intended for short, fixed-rate capture paths where DMA setup
+    /// and two async wakeups cost more than the ten transferred bytes. Each
+    /// register retains the required 500 ns address-to-data pause.
+    pub fn read_register_pair_blocking(
+        &mut self,
+        first: Register,
+        second: Register,
+    ) -> Result<(u32, u32), SpiError<E>> {
+        let first = self.read_register_blocking(first)?;
+        let second = self.read_register_blocking(second)?;
+        Ok((first, second))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,6 +264,51 @@ mod tests {
                 }
             }
             Ok(())
+        }
+    }
+
+    struct BlockingPairMock {
+        transactions: usize,
+        addresses: [u8; 2],
+        values: [u32; 2],
+    }
+
+    impl embedded_hal::spi::ErrorType for BlockingPairMock {
+        type Error = core::convert::Infallible;
+    }
+
+    impl embedded_hal::spi::SpiDevice<u8> for BlockingPairMock {
+        fn transaction(
+            &mut self,
+            ops: &mut [embedded_hal::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            assert_eq!(ops.len(), 3);
+            let transaction = self.transactions;
+            assert!(transaction < self.values.len());
+            match &ops[0] {
+                embedded_hal::spi::Operation::Write(address) => {
+                    self.addresses[transaction] = address[0];
+                }
+                _ => panic!("first operation must write the register address"),
+            }
+            assert!(matches!(ops[1], embedded_hal::spi::Operation::DelayNs(500)));
+            match &mut ops[2] {
+                embedded_hal::spi::Operation::Read(data) => {
+                    data.copy_from_slice(&self.values[transaction].to_be_bytes());
+                }
+                _ => panic!("third operation must read the register value"),
+            }
+            self.transactions += 1;
+            Ok(())
+        }
+    }
+
+    impl embedded_hal_async::spi::SpiDevice<u8> for BlockingPairMock {
+        async fn transaction(
+            &mut self,
+            _ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            panic!("blocking pair test must not use the async SPI path")
         }
     }
 
@@ -298,6 +377,31 @@ mod tests {
         let spi: Tmc4671Spi<MockSpiBus> =
             Tmc4671Spi::new(MockSpiBus::default()).with_retry_policy(RetryPolicy::production());
         assert_eq!(spi.retry_policy.max_attempts, 3);
+    }
+
+    #[test]
+    fn blocking_register_pair_uses_two_complete_read_transactions() {
+        let bus = BlockingPairMock {
+            transactions: 0,
+            addresses: [0; 2],
+            values: [0x1234_5678, 0x9abc_def0],
+        };
+        let mut spi = Tmc4671Spi::new(bus);
+
+        let values = spi
+            .read_register_pair_blocking(registers::OPENLOOP_PHI, registers::PID_TORQUE_FLUX_ACTUAL)
+            .expect("blocking pair read");
+        let bus = spi.into_inner();
+
+        assert_eq!(values, (0x1234_5678, 0x9abc_def0));
+        assert_eq!(bus.transactions, 2);
+        assert_eq!(
+            bus.addresses,
+            [
+                registers::OPENLOOP_PHI.addr(),
+                registers::PID_TORQUE_FLUX_ACTUAL.addr(),
+            ]
+        );
     }
 
     #[test]
