@@ -178,7 +178,11 @@ impl<SPI, E> Tmc4671Spi<SPI>
 where
     SPI: embedded_hal::spi::SpiDevice<u8, Error = E>,
 {
-    fn read_register_blocking(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
+    /// Read one register synchronously in a complete CS-framed transaction.
+    ///
+    /// This is intended for short, fixed-rate capture paths where DMA setup
+    /// and an async wakeup cost more than the five transferred bytes.
+    pub fn read_register_blocking(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
         let addr = [reg.addr()];
         let mut data = [0u8; 4];
         embedded_hal::spi::SpiDevice::transaction(
