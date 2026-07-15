@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod pid;
 pub mod registers;
 pub mod spi;
 

@@ -639,10 +639,13 @@ pub struct AbnDecoderMode {
     _reserved3: u32,
 }
 
-/// PID gain register layout — shared by flux, torque, velocity, and position loops.
+/// Raw PID gain register layout shared by all four controller loops.
 ///
 /// Used for registers PID_FLUX_P_FLUX_I (0x54), PID_TORQUE_P_TORQUE_I (0x56),
 /// PID_VELOCITY_P_VELOCITY_I (0x58), and PID_POSITION_P_POSITION_I (0x5A).
+/// These `u16` fields expose the register bits for low-level inspection. Values
+/// applied as controller gains must first be validated through
+/// [`crate::pid::PidGain`].
 #[bitfield(u32)]
 pub struct PidGains {
     /// Integral gain.
