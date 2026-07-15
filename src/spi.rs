@@ -102,7 +102,8 @@ where
         Ok(())
     }
 
-    /// Write a register and verify by reading back. Retries on mismatch up to
+    /// Write a register and verify by reading back. Retries the complete
+    /// write/read-back attempt after bus errors or mismatches, up to
     /// `self.retry_policy.max_attempts` total attempts (1 = no retry).
     ///
     /// Returns [`SpiError::VerifyFailed`] when retries are exhausted, carrying
@@ -114,13 +115,18 @@ where
     ) -> Result<(), SpiError<E>> {
         let max = self.retry_policy.max_attempts.max(1);
         let mut last_actual: u32 = 0;
-        for _ in 0..max {
-            self.write_register(reg, value).await?;
-            let actual = self.read_register(reg).await?;
-            if actual == value {
-                return Ok(());
+        for attempt in 0..max {
+            let result = async {
+                self.write_register(reg, value).await?;
+                self.read_register(reg).await
             }
-            last_actual = actual;
+            .await;
+            match result {
+                Ok(actual) if actual == value => return Ok(()),
+                Ok(actual) => last_actual = actual,
+                Err(error) if attempt + 1 == max => return Err(error),
+                Err(_) => continue,
+            }
         }
         Err(SpiError::VerifyFailed {
             expected: value,
@@ -128,8 +134,8 @@ where
         })
     }
 
-    /// Read a register and compare against `expected`. Retries on mismatch
-    /// up to `self.retry_policy.max_attempts` total attempts.
+    /// Read a register and compare against `expected`. Retries after bus errors
+    /// or mismatches up to `self.retry_policy.max_attempts` total attempts.
     ///
     /// Returns [`SpiError::VerifyFailed`] when retries are exhausted, carrying
     /// the most recent mismatched read.
@@ -140,12 +146,13 @@ where
     ) -> Result<u32, SpiError<E>> {
         let max = self.retry_policy.max_attempts.max(1);
         let mut last_actual: u32 = 0;
-        for _ in 0..max {
-            let actual = self.read_register(reg).await?;
-            if actual == expected {
-                return Ok(actual);
+        for attempt in 0..max {
+            match self.read_register(reg).await {
+                Ok(actual) if actual == expected => return Ok(actual),
+                Ok(actual) => last_actual = actual,
+                Err(error) if attempt + 1 == max => return Err(error),
+                Err(_) => continue,
             }
-            last_actual = actual;
         }
         Err(SpiError::VerifyFailed {
             expected,
@@ -233,16 +240,29 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct VerifyBusError;
+
+    impl embedded_hal_async::spi::Error for VerifyBusError {
+        fn kind(&self) -> embedded_hal_async::spi::ErrorKind {
+            embedded_hal_async::spi::ErrorKind::Other
+        }
+    }
+
     #[derive(Default)]
     struct VerifyMock {
         attempts: core::cell::Cell<u8>,
         /// Number of read-back attempts that should return the wrong value.
         wrong_for_attempts: u8,
         expected: u32,
+        write_bus_errors_remaining: u8,
+        read_bus_errors_remaining: u8,
+        write_transactions: core::cell::Cell<u8>,
+        read_transactions: core::cell::Cell<u8>,
     }
 
     impl embedded_hal_async::spi::ErrorType for VerifyMock {
-        type Error = core::convert::Infallible;
+        type Error = VerifyBusError;
     }
 
     impl embedded_hal_async::spi::SpiDevice<u8> for VerifyMock {
@@ -254,6 +274,11 @@ mod tests {
                 .iter()
                 .any(|op| matches!(op, embedded_hal_async::spi::Operation::Read(_)));
             if is_read {
+                self.read_transactions.set(self.read_transactions.get() + 1);
+                if self.read_bus_errors_remaining > 0 {
+                    self.read_bus_errors_remaining -= 1;
+                    return Err(VerifyBusError);
+                }
                 let attempt = self.attempts.get();
                 self.attempts.set(attempt + 1);
                 let value = if attempt < self.wrong_for_attempts {
@@ -265,6 +290,13 @@ mod tests {
                     if let embedded_hal_async::spi::Operation::Read(buf) = op {
                         buf.copy_from_slice(&value.to_be_bytes());
                     }
+                }
+            } else {
+                self.write_transactions
+                    .set(self.write_transactions.get() + 1);
+                if self.write_bus_errors_remaining > 0 {
+                    self.write_bus_errors_remaining -= 1;
+                    return Err(VerifyBusError);
                 }
             }
             Ok(())
@@ -451,6 +483,69 @@ mod tests {
     }
 
     #[test]
+    fn write_verified_recovers_after_transient_write_bus_error() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                write_bus_errors_remaining: 1,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi
+                .write_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Ok(()));
+            assert_eq!(bus.write_transactions.get(), 2);
+            assert_eq!(bus.read_transactions.get(), 1);
+        });
+    }
+
+    #[test]
+    fn write_verified_recovers_after_transient_readback_bus_error() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 1,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi
+                .write_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Ok(()));
+            assert_eq!(bus.write_transactions.get(), 2);
+            assert_eq!(bus.read_transactions.get(), 2);
+        });
+    }
+
+    #[test]
+    fn write_verified_returns_bus_error_after_three_failed_attempts() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                write_bus_errors_remaining: 3,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi
+                .write_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Err(SpiError::Bus(VerifyBusError)));
+            assert_eq!(bus.write_transactions.get(), 3);
+            assert_eq!(bus.read_transactions.get(), 0);
+        });
+    }
+
+    #[test]
     fn read_verified_succeeds_after_transient_mismatches() {
         pollster::block_on(async {
             let bus = VerifyMock {
@@ -485,6 +580,66 @@ mod tests {
                 }
                 other => panic!("expected VerifyFailed, got {:?}", other),
             }
+        });
+    }
+
+    #[test]
+    fn read_verified_recovers_after_transient_bus_error() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 1,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi
+                .read_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Ok(0x1234_5678));
+            assert_eq!(bus.read_transactions.get(), 2);
+        });
+    }
+
+    #[test]
+    fn read_verified_returns_bus_error_after_three_failed_attempts() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 3,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi
+                .read_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Err(SpiError::Bus(VerifyBusError)));
+            assert_eq!(bus.read_transactions.get(), 3);
+        });
+    }
+
+    #[test]
+    fn default_policy_does_not_retry_bus_error() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 1,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus);
+
+            let result = spi
+                .read_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Err(SpiError::Bus(VerifyBusError)));
+            assert_eq!(bus.read_transactions.get(), 1);
         });
     }
 }
