@@ -185,6 +185,21 @@ impl<SPI, E> Tmc4671Spi<SPI>
 where
     SPI: embedded_hal::spi::SpiDevice<u8, Error = E>,
 {
+    /// Write one register synchronously in a complete CS-framed transaction.
+    ///
+    /// This is intended for short diagnostic and capture paths that already
+    /// use synchronous SPI transactions.
+    pub fn write_register_blocking(
+        &mut self,
+        reg: Register,
+        value: u32,
+    ) -> Result<(), SpiError<E>> {
+        let bytes = value.to_be_bytes();
+        let frame = [reg.addr() | 0x80, bytes[0], bytes[1], bytes[2], bytes[3]];
+        embedded_hal::spi::SpiDevice::write(&mut self.spi, &frame)?;
+        Ok(())
+    }
+
     /// Read one register synchronously in a complete CS-framed transaction.
     ///
     /// This is intended for short, fixed-rate capture paths where DMA setup
@@ -201,6 +216,15 @@ where
             ],
         )?;
         Ok(u32::from_be_bytes(data))
+    }
+
+    /// Read one sub-register synchronously.
+    ///
+    /// The selector write and data read remain separate CS-framed
+    /// transactions, matching the TMC4671 sub-register protocol.
+    pub fn read_sub_register_blocking(&mut self, sub: SubRegister) -> Result<u32, SpiError<E>> {
+        self.write_register_blocking(sub.addr, u32::from(sub.sub_addr))?;
+        self.read_register_blocking(sub.data)
     }
 
     /// Read two registers synchronously as separate CS-framed transactions.
@@ -348,6 +372,54 @@ mod tests {
         }
     }
 
+    struct BlockingSubRegisterMock {
+        transactions: usize,
+        frames: [[u8; 5]; 2],
+        frame_lengths: [usize; 2],
+        value: u32,
+    }
+
+    impl embedded_hal::spi::ErrorType for BlockingSubRegisterMock {
+        type Error = core::convert::Infallible;
+    }
+
+    impl embedded_hal::spi::SpiDevice<u8> for BlockingSubRegisterMock {
+        fn transaction(
+            &mut self,
+            ops: &mut [embedded_hal::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            match ops {
+                [embedded_hal::spi::Operation::Write(frame)] => {
+                    let index = self.transactions;
+                    self.frames[index][..frame.len()].copy_from_slice(frame);
+                    self.frame_lengths[index] = frame.len();
+                }
+                [
+                    embedded_hal::spi::Operation::Write(address),
+                    embedded_hal::spi::Operation::DelayNs(500),
+                    embedded_hal::spi::Operation::Read(data),
+                ] => {
+                    let index = self.transactions;
+                    self.frames[index][..address.len()].copy_from_slice(address);
+                    self.frame_lengths[index] = address.len();
+                    data.copy_from_slice(&self.value.to_be_bytes());
+                }
+                _ => panic!("unexpected blocking sub-register transaction"),
+            }
+            self.transactions += 1;
+            Ok(())
+        }
+    }
+
+    impl embedded_hal_async::spi::SpiDevice<u8> for BlockingSubRegisterMock {
+        async fn transaction(
+            &mut self,
+            _ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            panic!("blocking sub-register test must not use the async SPI path")
+        }
+    }
+
     #[test]
     fn read_frame_address_bit7_clear() {
         let reg = registers::PID_POSITION_TARGET;
@@ -437,6 +509,33 @@ mod tests {
                 registers::OPENLOOP_PHI.addr(),
                 registers::PID_TORQUE_FLUX_ACTUAL.addr(),
             ]
+        );
+    }
+
+    #[test]
+    fn blocking_sub_register_read_writes_selector_then_reads_data() {
+        let bus = BlockingSubRegisterMock {
+            transactions: 0,
+            frames: [[0; 5]; 2],
+            frame_lengths: [0; 2],
+            value: 0x1234_5678,
+        };
+        let mut spi = Tmc4671Spi::new(bus);
+
+        let value = spi
+            .read_sub_register_blocking(registers::CHIPINFO_SI_VERSION)
+            .expect("blocking sub-register read");
+        let bus = spi.into_inner();
+
+        assert_eq!(value, 0x1234_5678);
+        assert_eq!(bus.transactions, 2);
+        assert_eq!(
+            &bus.frames[0][..bus.frame_lengths[0]],
+            &[registers::CHIPINFO_ADDR.addr() | 0x80, 0, 0, 0, 1],
+        );
+        assert_eq!(
+            &bus.frames[1][..bus.frame_lengths[1]],
+            &[registers::CHIPINFO_DATA.addr()],
         );
     }
 
