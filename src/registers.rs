@@ -394,6 +394,8 @@ pub const CONFIG_FEED_FORWARD_TORQUE_GAIN: SubRegister = SubRegister::new(0x4D, 
 /// Feedforward torque filter time constant.
 pub const CONFIG_FEED_FORWARD_TORQUE_FILTER_CONSTANT: SubRegister =
     SubRegister::new(0x4D, 0x4E, 43);
+/// Minimum position deviation used by the period-based velocity meter.
+pub const CONFIG_VELOCITY_METER_PPTM_MIN_POS_DEV: SubRegister = SubRegister::new(0x4D, 0x4E, 50);
 // Reference switch
 /// Reference switch configuration.
 pub const CONFIG_REF_SWITCH_CONFIG: SubRegister = SubRegister::new(0x4D, 0x4E, 51);
@@ -471,6 +473,8 @@ pub const INTERIM_PID_TORQUE_TARGET_TORQUE_ACTUAL: SubRegister = SubRegister::ne
 pub const INTERIM_FF_VELOCITY: SubRegister = SubRegister::new(0x6E, 0x6F, 27);
 /// Torque feedforward monitor.
 pub const INTERIM_FF_TORQUE: SubRegister = SubRegister::new(0x6E, 0x6F, 28);
+/// Period-based velocity meter's actual-velocity monitor.
+pub const INTERIM_ACTUAL_VELOCITY_PPTM: SubRegister = SubRegister::new(0x6E, 0x6F, 29);
 
 // ---- Motion mode and motor type enums ----
 
@@ -867,6 +871,13 @@ mod tests {
     }
 
     #[test]
+    fn pptm_minimum_position_deviation_uses_config_selector_50() {
+        assert_eq!(CONFIG_VELOCITY_METER_PPTM_MIN_POS_DEV.data.addr(), 0x4D);
+        assert_eq!(CONFIG_VELOCITY_METER_PPTM_MIN_POS_DEV.addr.addr(), 0x4E);
+        assert_eq!(CONFIG_VELOCITY_METER_PPTM_MIN_POS_DEV.sub_addr, 50);
+    }
+
+    #[test]
     fn pid_error_sub_registers() {
         assert_eq!(PID_ERROR_PID_TORQUE_ERROR.data.addr(), 0x6C);
         assert_eq!(PID_ERROR_PID_TORQUE_ERROR.addr.addr(), 0x6D);
@@ -882,6 +893,13 @@ mod tests {
         assert_eq!(INTERIM_ADC_I1_I0.sub_addr, 19);
         assert_eq!(INTERIM_FF_VELOCITY.sub_addr, 27);
         assert_eq!(INTERIM_FF_TORQUE.sub_addr, 28);
+    }
+
+    #[test]
+    fn pptm_actual_velocity_uses_interim_selector_29() {
+        assert_eq!(INTERIM_ACTUAL_VELOCITY_PPTM.data.addr(), 0x6E);
+        assert_eq!(INTERIM_ACTUAL_VELOCITY_PPTM.addr.addr(), 0x6F);
+        assert_eq!(INTERIM_ACTUAL_VELOCITY_PPTM.sub_addr, 29);
     }
 
     #[test]
