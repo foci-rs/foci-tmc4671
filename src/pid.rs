@@ -106,61 +106,6 @@ impl From<PidIGain> for u32 {
     }
 }
 
-/// Non-negative TMC4671 PID gain accepted by the signed 16-bit gain fields.
-///
-/// # Deprecated
-///
-/// Temporary migration shim. New code must use [`PidPGain`] or [`PidIGain`]
-/// so proportional and integral representations cannot be interchanged. This
-/// type is removed after downstream owners migrate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
-pub struct PidGain(u16);
-
-impl PidGain {
-    /// Disabled gain.
-    pub const ZERO: Self = Self(0);
-    /// Largest non-negative gain accepted by the TMC4671.
-    pub const MAX: Self = Self(0x7fff);
-
-    /// Validate one raw PID gain.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PidGainOutOfRange`] when the raw value would encode a
-    /// negative signed 16-bit gain.
-    pub const fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
-        match validate_nonnegative_gain(raw) {
-            Ok(raw) => Ok(Self(raw)),
-            Err(error) => Err(error),
-        }
-    }
-
-    /// Return the validated raw register value.
-    pub const fn raw(self) -> u16 {
-        self.0
-    }
-}
-
-impl TryFrom<u16> for PidGain {
-    type Error = PidGainOutOfRange;
-
-    fn try_from(raw: u16) -> Result<Self, Self::Error> {
-        Self::new(raw)
-    }
-}
-
-impl From<PidGain> for u16 {
-    fn from(gain: PidGain) -> Self {
-        gain.raw()
-    }
-}
-
-impl From<PidGain> for u32 {
-    fn from(gain: PidGain) -> Self {
-        u32::from(gain.raw())
-    }
-}
-
 /// Raw value that cannot represent a non-negative TMC4671 PID gain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub struct PidGainOutOfRange {
@@ -196,18 +141,6 @@ impl PidGainPair {
     /// Construct a pair from validated gains.
     pub const fn new(p: PidPGain, i: PidIGain) -> Self {
         Self { p, i }
-    }
-
-    /// Pack two validated legacy fields during the coordinated migration.
-    ///
-    /// This temporary seam does not expose either typed field. New code must
-    /// use [`Self::new`].
-    #[doc(hidden)]
-    pub const fn new_legacy(p: PidGain, i: PidGain) -> Self {
-        Self {
-            p: PidPGain(p.raw()),
-            i: PidIGain(i.raw()),
-        }
     }
 
     /// Pack the pair into the TMC4671 PID register layout.
@@ -263,16 +196,18 @@ mod tests {
     }
 
     #[test]
-    fn legacy_pair_seam_preserves_layout_without_exposing_typed_fields() {
-        let pair =
-            PidGainPair::new_legacy(PidGain::new(0x1234).unwrap(), PidGain::new(0x5678).unwrap());
-
-        assert_eq!(pair.register_value(), 0x1234_5678);
-    }
-
-    #[test]
     fn pair_rejects_negative_readback_halves() {
-        assert!(PidGainPair::try_from_register(0x8000_0001).is_err());
-        assert!(PidGainPair::try_from_register(0x0001_ffff).is_err());
+        assert_eq!(
+            PidGainPair::try_from_register(0x8000_0001)
+                .unwrap_err()
+                .raw(),
+            0x8000
+        );
+        assert_eq!(
+            PidGainPair::try_from_register(0x0001_ffff)
+                .unwrap_err()
+                .raw(),
+            0xffff
+        );
     }
 }
