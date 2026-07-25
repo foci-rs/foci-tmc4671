@@ -407,6 +407,8 @@ pub const CONFIG_SINGLE_PIN_IF_SCALE_OFFSET: SubRegister = SubRegister::new(0x4D
 // Advanced PI representation
 /// Advanced PI controller representation mode.
 pub const CONFIG_ADVANCED_PI_REPRESENT: SubRegister = SubRegister::new(0x4D, 0x4E, 62);
+/// Q8.8 proportional and Q4.12 integral representation for all PID loops.
+pub const ADVANCED_PI_REPRESENT_P_Q8_8_I_Q4_12: u32 = 0x15;
 
 // PID_ERROR sub-registers (data at 0x6C, selector at 0x6D)
 /// PID torque error value.
@@ -649,7 +651,7 @@ pub struct AbnDecoderMode {
 /// PID_VELOCITY_P_VELOCITY_I (0x58), and PID_POSITION_P_POSITION_I (0x5A).
 /// These `u16` fields expose the register bits for low-level inspection. Values
 /// applied as controller gains must first be validated through
-/// [`crate::pid::PidGain`].
+/// [`crate::pid::PidPGain`] and [`crate::pid::PidIGain`].
 #[bitfield(u32)]
 pub struct PidGains {
     /// Integral gain.
@@ -868,6 +870,12 @@ mod tests {
         // All use the same selector register
         assert_eq!(CONFIG_BIQUAD_X_A_1.addr.addr(), 0x4E);
         assert_eq!(CONFIG_ADVANCED_PI_REPRESENT.addr.addr(), 0x4E);
+    }
+
+    #[test]
+    fn selected_advanced_pi_representation_is_datasheet_value() {
+        assert_eq!(ADVANCED_PI_REPRESENT_P_Q8_8_I_Q4_12, 0x15);
+        assert_eq!(CONFIG_ADVANCED_PI_REPRESENT.sub_addr, 62);
     }
 
     #[test]
