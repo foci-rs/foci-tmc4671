@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn with_retry_policy_sets_field() {
         let spi: Tmc4671Spi<MockSpiBus> =
-            Tmc4671Spi::new(MockSpiBus::default()).with_retry_policy(RetryPolicy::production());
+            Tmc4671Spi::new(MockSpiBus).with_retry_policy(RetryPolicy::production());
         assert_eq!(spi.retry_policy.max_attempts, 3);
     }
 
