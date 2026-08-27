@@ -8,6 +8,21 @@ const fn validate_nonnegative_gain(raw: u16) -> Result<u16, PidGainOutOfRange> {
     }
 }
 
+/// Common shape of a validated non-negative TMC4671 PID gain register.
+pub trait RegisterGain: Copy {
+    /// Largest non-negative gain accepted by the TMC4671 for this field.
+    const MAX: Self;
+    /// Return the validated raw register value.
+    fn raw(self) -> u16;
+    /// Validate one raw register value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PidGainOutOfRange`] when the raw value would encode a
+    /// negative signed 16-bit gain.
+    fn new(raw: u16) -> Result<Self, PidGainOutOfRange>;
+}
+
 /// Non-negative Q8.8 proportional gain accepted by a TMC4671 PID P field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub struct PidPGain(u16);
@@ -57,6 +72,18 @@ impl From<PidPGain> for u32 {
     }
 }
 
+impl RegisterGain for PidPGain {
+    const MAX: Self = Self::MAX;
+
+    fn raw(self) -> u16 {
+        self.raw()
+    }
+
+    fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
+        Self::new(raw)
+    }
+}
+
 /// Non-negative Q4.12 integral gain accepted by a TMC4671 PID I field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub struct PidIGain(u16);
@@ -103,6 +130,18 @@ impl From<PidIGain> for u16 {
 impl From<PidIGain> for u32 {
     fn from(gain: PidIGain) -> Self {
         u32::from(gain.raw())
+    }
+}
+
+impl RegisterGain for PidIGain {
+    const MAX: Self = Self::MAX;
+
+    fn raw(self) -> u16 {
+        self.raw()
+    }
+
+    fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
+        Self::new(raw)
     }
 }
 
@@ -209,5 +248,17 @@ mod tests {
                 .raw(),
             0xffff
         );
+    }
+
+    #[test]
+    fn register_gain_trait_matches_inherent_methods_for_both_gain_types() {
+        fn round_trip<G: RegisterGain>(raw: u16) -> u16 {
+            G::new(raw).unwrap().raw()
+        }
+        assert_eq!(round_trip::<PidPGain>(512), 512);
+        assert_eq!(round_trip::<PidIGain>(512), 512);
+        assert_eq!(PidPGain::MAX.raw(), <PidPGain as RegisterGain>::MAX.raw());
+        assert_eq!(PidIGain::MAX.raw(), <PidIGain as RegisterGain>::MAX.raw());
+        assert!(<PidPGain as RegisterGain>::new(0x8000).is_err());
     }
 }
