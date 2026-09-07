@@ -11,9 +11,9 @@ pub enum SpiError<E> {
     VerifyFailed { expected: u32, actual: u32 },
 }
 
-/// SPI retry behaviour. Applied only to the `*_verified` methods on
-/// [`Tmc4671Spi`]. Plain `read_register` and `write_register` are not
-/// affected by the policy.
+/// SPI retry behaviour. Applied to the `*_verified` methods and to
+/// [`Tmc4671Spi::read_register_retried`]. Plain `read_register` and
+/// `write_register` are not affected by the policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RetryPolicy {
     /// Total attempts including the first. Must be at least 1.
@@ -158,6 +158,24 @@ where
             expected,
             actual: last_actual,
         })
+    }
+
+    /// Read a register, retrying on bus error only (not on value — unlike
+    /// [`Tmc4671Spi::read_register_verified`], the result is not compared
+    /// against any expected value, since some registers legitimately vary
+    /// between reads). Retries up to `self.retry_policy.max_attempts` total
+    /// attempts.
+    pub async fn read_register_retried(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut last_err = None;
+        for attempt in 0..max {
+            match self.read_register(reg).await {
+                Ok(value) => return Ok(value),
+                Err(error) if attempt + 1 == max => return Err(error),
+                Err(error) => last_err = Some(error),
+            }
+        }
+        Err(last_err.expect("loop runs at least once since max >= 1"))
     }
 
     /// Read a sub-register (write selector address first, then read data).
@@ -735,6 +753,75 @@ mod tests {
             let result = spi
                 .read_register_verified(registers::PID_POSITION_TARGET, 0x1234_5678)
                 .await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Err(SpiError::Bus(VerifyBusError)));
+            assert_eq!(bus.read_transactions.get(), 1);
+        });
+    }
+
+    #[test]
+    fn read_retried_recovers_after_transient_bus_error() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 1,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi.read_register_retried(registers::STATUS_FLAGS).await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Ok(0x1234_5678));
+            assert_eq!(bus.read_transactions.get(), 2);
+        });
+    }
+
+    #[test]
+    fn read_retried_returns_bus_error_after_exhausting_attempts() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 3,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi.read_register_retried(registers::STATUS_FLAGS).await;
+            let bus = spi.into_inner();
+
+            assert_eq!(result, Err(SpiError::Bus(VerifyBusError)));
+            assert_eq!(bus.read_transactions.get(), 3);
+        });
+    }
+
+    #[test]
+    fn read_retried_does_not_reject_a_legitimately_varying_value() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                expected: 0,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus).with_retry_policy(RetryPolicy::production());
+
+            let result = spi.read_register_retried(registers::STATUS_FLAGS).await;
+
+            assert_eq!(result, Ok(0));
+        });
+    }
+
+    #[test]
+    fn read_retried_default_policy_does_not_retry_bus_error() {
+        pollster::block_on(async {
+            let bus = VerifyMock {
+                read_bus_errors_remaining: 1,
+                expected: 0x1234_5678,
+                ..Default::default()
+            };
+            let mut spi = Tmc4671Spi::new(bus);
+
+            let result = spi.read_register_retried(registers::STATUS_FLAGS).await;
             let bus = spi.into_inner();
 
             assert_eq!(result, Err(SpiError::Bus(VerifyBusError)));
