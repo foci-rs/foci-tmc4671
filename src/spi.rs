@@ -74,6 +74,11 @@ where
         self.spi
     }
 
+    /// Borrow the wrapped SPI device (used by host tests to inspect a mock).
+    pub fn inner(&self) -> &SPI {
+        &self.spi
+    }
+
     /// Read a 32-bit register value.
     ///
     /// Sends the address byte, pauses 500ns (required by TMC4671-LA for
