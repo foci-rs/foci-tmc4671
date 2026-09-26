@@ -23,127 +23,83 @@ pub trait RegisterGain: Copy {
     fn new(raw: u16) -> Result<Self, PidGainOutOfRange>;
 }
 
-/// Non-negative Q8.8 proportional gain accepted by a TMC4671 PID P field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
-pub struct PidPGain(u16);
+macro_rules! register_gain {
+    ($(#[$meta:meta])* $name:ident, $format:literal, $role:literal) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+        pub struct $name(u16);
 
-impl PidPGain {
-    /// Disabled proportional gain.
-    pub const ZERO: Self = Self(0);
-    /// Largest non-negative proportional gain accepted by the TMC4671.
-    pub const MAX: Self = Self(0x7fff);
+        impl $name {
+            #[doc = concat!("Disabled ", $role, " gain.")]
+            pub const ZERO: Self = Self(0);
+            #[doc = concat!("Largest non-negative ", $role, " gain accepted by the TMC4671.")]
+            pub const MAX: Self = Self(0x7fff);
 
-    /// Validate one raw Q8.8 proportional gain.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PidGainOutOfRange`] when the raw value would encode a
-    /// negative signed 16-bit gain.
-    pub const fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
-        match validate_nonnegative_gain(raw) {
-            Ok(raw) => Ok(Self(raw)),
-            Err(error) => Err(error),
+            #[doc = concat!("Validate one raw ", $format, " ", $role, " gain.")]
+            ///
+            /// # Errors
+            ///
+            /// Returns [`PidGainOutOfRange`] when the raw value would encode a
+            /// negative signed 16-bit gain.
+            pub const fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
+                match validate_nonnegative_gain(raw) {
+                    Ok(raw) => Ok(Self(raw)),
+                    Err(error) => Err(error),
+                }
+            }
+
+            /// Return the validated raw register value.
+            pub const fn raw(self) -> u16 {
+                self.0
+            }
         }
-    }
 
-    /// Return the validated raw register value.
-    pub const fn raw(self) -> u16 {
-        self.0
-    }
-}
+        impl TryFrom<u16> for $name {
+            type Error = PidGainOutOfRange;
 
-impl TryFrom<u16> for PidPGain {
-    type Error = PidGainOutOfRange;
-
-    fn try_from(raw: u16) -> Result<Self, Self::Error> {
-        Self::new(raw)
-    }
-}
-
-impl From<PidPGain> for u16 {
-    fn from(gain: PidPGain) -> Self {
-        gain.raw()
-    }
-}
-
-impl From<PidPGain> for u32 {
-    fn from(gain: PidPGain) -> Self {
-        u32::from(gain.raw())
-    }
-}
-
-impl RegisterGain for PidPGain {
-    const MAX: Self = Self::MAX;
-
-    fn raw(self) -> u16 {
-        self.raw()
-    }
-
-    fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
-        Self::new(raw)
-    }
-}
-
-/// Non-negative Q4.12 integral gain accepted by a TMC4671 PID I field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
-pub struct PidIGain(u16);
-
-impl PidIGain {
-    /// Disabled integral gain.
-    pub const ZERO: Self = Self(0);
-    /// Largest non-negative integral gain accepted by the TMC4671.
-    pub const MAX: Self = Self(0x7fff);
-
-    /// Validate one raw Q4.12 integral gain.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PidGainOutOfRange`] when the raw value would encode a
-    /// negative signed 16-bit gain.
-    pub const fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
-        match validate_nonnegative_gain(raw) {
-            Ok(raw) => Ok(Self(raw)),
-            Err(error) => Err(error),
+            fn try_from(raw: u16) -> Result<Self, Self::Error> {
+                Self::new(raw)
+            }
         }
-    }
 
-    /// Return the validated raw register value.
-    pub const fn raw(self) -> u16 {
-        self.0
-    }
+        impl From<$name> for u16 {
+            fn from(gain: $name) -> Self {
+                gain.raw()
+            }
+        }
+
+        impl From<$name> for u32 {
+            fn from(gain: $name) -> Self {
+                u32::from(gain.raw())
+            }
+        }
+
+        impl RegisterGain for $name {
+            const MAX: Self = Self::MAX;
+
+            fn raw(self) -> u16 {
+                self.raw()
+            }
+
+            fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
+                Self::new(raw)
+            }
+        }
+    };
 }
 
-impl TryFrom<u16> for PidIGain {
-    type Error = PidGainOutOfRange;
-
-    fn try_from(raw: u16) -> Result<Self, Self::Error> {
-        Self::new(raw)
-    }
-}
-
-impl From<PidIGain> for u16 {
-    fn from(gain: PidIGain) -> Self {
-        gain.raw()
-    }
-}
-
-impl From<PidIGain> for u32 {
-    fn from(gain: PidIGain) -> Self {
-        u32::from(gain.raw())
-    }
-}
-
-impl RegisterGain for PidIGain {
-    const MAX: Self = Self::MAX;
-
-    fn raw(self) -> u16 {
-        self.raw()
-    }
-
-    fn new(raw: u16) -> Result<Self, PidGainOutOfRange> {
-        Self::new(raw)
-    }
-}
+register_gain!(
+    /// Non-negative Q8.8 proportional gain accepted by a TMC4671 PID P field.
+    PidPGain,
+    "Q8.8",
+    "proportional"
+);
+register_gain!(
+    /// Non-negative Q4.12 integral gain accepted by a TMC4671 PID I field.
+    PidIGain,
+    "Q4.12",
+    "integral"
+);
 
 /// Raw value that cannot represent a non-negative TMC4671 PID gain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
