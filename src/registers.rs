@@ -645,25 +645,6 @@ pub struct AbnDecoderMode {
     _reserved3: u32,
 }
 
-/// Raw PID gain register layout shared by all four controller loops.
-///
-/// Used for registers PID_FLUX_P_FLUX_I (0x54), PID_TORQUE_P_TORQUE_I (0x56),
-/// PID_VELOCITY_P_VELOCITY_I (0x58), and PID_POSITION_P_POSITION_I (0x5A).
-/// Under the fixed `CONFIG_ADVANCED_PI_REPRESENT=0x15` contract, bits 31:16
-/// encode a Q8.8 P gain and bits 15:0 encode a Q4.12 I gain.
-/// These `u16` fields expose the register bits for low-level inspection. Values
-/// applied as controller gains must first be validated through
-/// [`crate::pid::PidPGain`] and [`crate::pid::PidIGain`].
-#[bitfield(u32)]
-pub struct PidGains {
-    /// Integral gain.
-    #[bits(16)]
-    pub i_gain: u16,
-    /// Proportional gain.
-    #[bits(16)]
-    pub p_gain: u16,
-}
-
 /// STATUS_FLAGS (0x7C) and STATUS_MASK (0x7D) register layout.
 ///
 /// Both registers share this bit layout. Read STATUS_FLAGS for current fault state;
@@ -936,15 +917,6 @@ mod tests {
         let flags = StatusFlags::from(1 << 19);
         assert!(!flags.adc_i_clipped());
         assert!(!flags.aenc_clipped());
-    }
-
-    #[test]
-    fn pid_gains_round_trip() {
-        let gains = PidGains::new().with_p_gain(1234).with_i_gain(5678);
-        let raw: u32 = gains.into();
-        let decoded = PidGains::from(raw);
-        assert_eq!(decoded.p_gain(), 1234);
-        assert_eq!(decoded.i_gain(), 5678);
     }
 
     #[test]

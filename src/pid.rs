@@ -160,6 +160,10 @@ impl PidGainOutOfRange {
 
 /// Validated Q8.8 P/Q4.12 I pair for the shared TMC4671 PID register layout.
 ///
+/// Used for registers PID_FLUX_P_FLUX_I (0x54), PID_TORQUE_P_TORQUE_I (0x56),
+/// PID_VELOCITY_P_VELOCITY_I (0x58), and PID_POSITION_P_POSITION_I (0x5A),
+/// under the fixed `CONFIG_ADVANCED_PI_REPRESENT=0x15` contract.
+///
 /// The distinct field types prevent swapping or duplicating gain domains:
 ///
 /// ```compile_fail
