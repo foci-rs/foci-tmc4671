@@ -173,15 +173,14 @@ where
     /// attempts.
     pub async fn read_register_retried(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
         let max = self.retry_policy.max_attempts.max(1);
-        let mut last_err = None;
-        for attempt in 0..max {
+        let mut attempt = 1;
+        loop {
             match self.read_register(reg).await {
                 Ok(value) => return Ok(value),
-                Err(error) if attempt + 1 == max => return Err(error),
-                Err(error) => last_err = Some(error),
+                Err(error) if attempt == max => return Err(error),
+                Err(_) => attempt += 1,
             }
         }
-        Err(last_err.expect("loop runs at least once since max >= 1"))
     }
 
     /// Read a sub-register (write selector address first, then read data).
