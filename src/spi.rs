@@ -130,8 +130,13 @@ where
     /// write/read-back attempt after bus errors or mismatches, up to
     /// `self.retry_policy.max_attempts` total attempts (1 = no retry).
     ///
-    /// Returns [`SpiError::VerifyFailed`] when retries are exhausted, carrying
-    /// the most recent mismatched read-back.
+    /// A retry repeats the write even when only the read-back failed, so use
+    /// this only for registers that hold the written value until the host
+    /// changes it, not for registers the chip updates itself.
+    ///
+    /// Returns the final attempt's error when retries are exhausted:
+    /// [`SpiError::VerifyFailed`] carrying that attempt's read-back, or
+    /// [`SpiError::Bus`].
     pub async fn write_register_verified(
         &mut self,
         reg: Register,
@@ -155,8 +160,9 @@ where
     /// Read a register and compare against `expected`. Retries after bus errors
     /// or mismatches up to `self.retry_policy.max_attempts` total attempts.
     ///
-    /// Returns [`SpiError::VerifyFailed`] when retries are exhausted, carrying
-    /// the most recent mismatched read.
+    /// Returns the final attempt's error when retries are exhausted:
+    /// [`SpiError::VerifyFailed`] carrying that attempt's read, or
+    /// [`SpiError::Bus`].
     pub async fn read_register_verified(
         &mut self,
         reg: Register,
