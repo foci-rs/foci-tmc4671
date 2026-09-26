@@ -1,4 +1,8 @@
+//! Driver for the TMC4671 FOC servo controller: register map, typed PID gain
+//! and current-limit domains, and the SPI access layer.
+
 #![no_std]
+#![warn(missing_docs)]
 
 pub mod current_limit;
 pub mod pid;

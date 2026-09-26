@@ -1,3 +1,5 @@
+//! TMC4671 register addresses, sub-register selectors, and register layouts.
+
 /// TMC4671 register address.
 ///
 /// Wraps a 7-bit register address. Bit 7 is the read/write flag

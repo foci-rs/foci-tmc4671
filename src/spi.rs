@@ -1,3 +1,5 @@
+//! TMC4671 SPI register access with optional retry.
+
 use embedded_hal_async::spi::{Operation, SpiDevice};
 
 use crate::registers::{Register, SubRegister};
@@ -8,7 +10,12 @@ pub enum SpiError<E> {
     /// SPI bus error from the underlying driver.
     Bus(E),
     /// Read-back verification failed after write.
-    VerifyFailed { expected: u32, actual: u32 },
+    VerifyFailed {
+        /// Value the caller wrote or expected to read.
+        expected: u32,
+        /// Value read back from the chip.
+        actual: u32,
+    },
 }
 
 /// SPI retry behaviour. Applied to the `*_verified` methods and to
