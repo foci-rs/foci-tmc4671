@@ -21,15 +21,15 @@ pub struct RetryPolicy {
 }
 
 impl Default for RetryPolicy {
-    /// Library default: single attempt, identical to pre-spec behaviour.
-    /// Boards opt into retries via [`Tmc4671Spi::with_retry_policy`].
+    /// Single attempt, no retry. Opt into retries via
+    /// [`Tmc4671Spi::with_retry_policy`].
     fn default() -> Self {
         Self { max_attempts: 1 }
     }
 }
 
 impl RetryPolicy {
-    /// Production policy used by both board binaries.
+    /// Three attempts: the first plus two retries.
     pub const fn production() -> Self {
         Self { max_attempts: 3 }
     }
