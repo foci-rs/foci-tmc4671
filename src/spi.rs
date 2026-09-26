@@ -108,6 +108,24 @@ where
         Ok(())
     }
 
+    /// Run `attempt` up to `self.retry_policy.max_attempts` times, stopping at
+    /// the first success. When every attempt fails, returns the final attempt's
+    /// error.
+    async fn retry<T>(
+        &mut self,
+        mut attempt: impl AsyncFnMut(&mut Self) -> Result<T, SpiError<E>>,
+    ) -> Result<T, SpiError<E>> {
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut attempts = 1;
+        loop {
+            match attempt(self).await {
+                Ok(value) => return Ok(value),
+                Err(error) if attempts == max => return Err(error),
+                Err(_) => attempts += 1,
+            }
+        }
+    }
+
     /// Write a register and verify by reading back. Retries the complete
     /// write/read-back attempt after bus errors or mismatches, up to
     /// `self.retry_policy.max_attempts` total attempts (1 = no retry).
@@ -119,25 +137,19 @@ where
         reg: Register,
         value: u32,
     ) -> Result<(), SpiError<E>> {
-        let max = self.retry_policy.max_attempts.max(1);
-        let mut last_actual: u32 = 0;
-        for attempt in 0..max {
-            let result = async {
-                self.write_register(reg, value).await?;
-                self.read_register(reg).await
+        self.retry(async |spi| {
+            spi.write_register(reg, value).await?;
+            let actual = spi.read_register(reg).await?;
+            if actual == value {
+                Ok(())
+            } else {
+                Err(SpiError::VerifyFailed {
+                    expected: value,
+                    actual,
+                })
             }
-            .await;
-            match result {
-                Ok(actual) if actual == value => return Ok(()),
-                Ok(actual) => last_actual = actual,
-                Err(error) if attempt + 1 == max => return Err(error),
-                Err(_) => continue,
-            }
-        }
-        Err(SpiError::VerifyFailed {
-            expected: value,
-            actual: last_actual,
         })
+        .await
     }
 
     /// Read a register and compare against `expected`. Retries after bus errors
@@ -150,20 +162,15 @@ where
         reg: Register,
         expected: u32,
     ) -> Result<u32, SpiError<E>> {
-        let max = self.retry_policy.max_attempts.max(1);
-        let mut last_actual: u32 = 0;
-        for attempt in 0..max {
-            match self.read_register(reg).await {
-                Ok(actual) if actual == expected => return Ok(actual),
-                Ok(actual) => last_actual = actual,
-                Err(error) if attempt + 1 == max => return Err(error),
-                Err(_) => continue,
+        self.retry(async |spi| {
+            let actual = spi.read_register(reg).await?;
+            if actual == expected {
+                Ok(actual)
+            } else {
+                Err(SpiError::VerifyFailed { expected, actual })
             }
-        }
-        Err(SpiError::VerifyFailed {
-            expected,
-            actual: last_actual,
         })
+        .await
     }
 
     /// Read a register, retrying on bus error only (not on value — unlike
@@ -172,15 +179,7 @@ where
     /// between reads). Retries up to `self.retry_policy.max_attempts` total
     /// attempts.
     pub async fn read_register_retried(&mut self, reg: Register) -> Result<u32, SpiError<E>> {
-        let max = self.retry_policy.max_attempts.max(1);
-        let mut attempt = 1;
-        loop {
-            match self.read_register(reg).await {
-                Ok(value) => return Ok(value),
-                Err(error) if attempt == max => return Err(error),
-                Err(_) => attempt += 1,
-            }
-        }
+        self.retry(async |spi| spi.read_register(reg).await).await
     }
 
     /// Read a sub-register (write selector address first, then read data).
