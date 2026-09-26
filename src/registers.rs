@@ -575,7 +575,7 @@ pub struct AdcI0ScaleOffset {
     /// ADC I0 offset correction (unsigned, subtracted before scaling).
     #[bits(16)]
     pub offset: u16,
-    /// ADC I0 gain scale factor (signed Q1.15 format).
+    /// ADC I0 gain scale factor (signed Q8.8; 256 is unity).
     #[bits(16)]
     pub scale: i16,
 }
@@ -588,7 +588,7 @@ pub struct AdcI1ScaleOffset {
     /// ADC I1 offset correction (unsigned, subtracted before scaling).
     #[bits(16)]
     pub offset: u16,
-    /// ADC I1 gain scale factor (signed Q1.15 format).
+    /// ADC I1 gain scale factor (signed Q8.8; 256 is unity).
     #[bits(16)]
     pub scale: i16,
 }
