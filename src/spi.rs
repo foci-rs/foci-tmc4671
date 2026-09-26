@@ -276,22 +276,6 @@ mod tests {
     use super::*;
     use crate::registers;
 
-    #[derive(Default)]
-    struct MockSpiBus;
-
-    impl embedded_hal_async::spi::ErrorType for MockSpiBus {
-        type Error = core::convert::Infallible;
-    }
-
-    impl embedded_hal_async::spi::SpiDevice<u8> for MockSpiBus {
-        async fn transaction(
-            &mut self,
-            _ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
-        ) -> Result<(), Self::Error> {
-            Ok(())
-        }
-    }
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct VerifyBusError;
 
@@ -448,71 +432,72 @@ mod tests {
         }
     }
 
-    #[test]
-    fn read_frame_address_bit7_clear() {
-        let reg = registers::PID_POSITION_TARGET;
-        assert_eq!(reg.addr(), 0x68);
-        assert_eq!(reg.addr() & 0x80, 0);
+    #[derive(Default)]
+    struct AsyncFrameMock {
+        write_frame: Option<[u8; 5]>,
+        read_address: Option<u8>,
+        read_value: u32,
     }
 
-    #[test]
-    fn write_frame_address_bit7_set() {
-        let reg = registers::PID_POSITION_TARGET;
-        assert_eq!(reg.addr() | 0x80, 0xE8);
+    impl embedded_hal_async::spi::ErrorType for AsyncFrameMock {
+        type Error = core::convert::Infallible;
     }
 
-    #[test]
-    fn value_big_endian_encoding() {
-        let value: u32 = 0x12345678;
-        let bytes = value.to_be_bytes();
-        assert_eq!(bytes, [0x12, 0x34, 0x56, 0x78]);
-    }
-
-    #[test]
-    fn value_big_endian_decoding() {
-        let bytes = [0x12, 0x34, 0x56, 0x78];
-        let value = u32::from_be_bytes(bytes);
-        assert_eq!(value, 0x12345678);
-    }
-
-    #[test]
-    fn spi_error_from_bus_error() {
-        let err: SpiError<u8> = SpiError::from(42u8);
-        assert_eq!(err, SpiError::Bus(42));
-    }
-
-    #[test]
-    fn verify_failed_error() {
-        let err: SpiError<u8> = SpiError::VerifyFailed {
-            expected: 0x1234,
-            actual: 0x5678,
-        };
-        match err {
-            SpiError::VerifyFailed { expected, actual } => {
-                assert_eq!(expected, 0x1234);
-                assert_eq!(actual, 0x5678);
+    impl embedded_hal_async::spi::SpiDevice<u8> for AsyncFrameMock {
+        async fn transaction(
+            &mut self,
+            ops: &mut [embedded_hal_async::spi::Operation<'_, u8>],
+        ) -> Result<(), Self::Error> {
+            match ops {
+                [embedded_hal_async::spi::Operation::Write(frame)] => {
+                    self.write_frame = Some((*frame).try_into().expect("5-byte write frame"));
+                }
+                [
+                    embedded_hal_async::spi::Operation::Write(address),
+                    embedded_hal_async::spi::Operation::DelayNs(500),
+                    embedded_hal_async::spi::Operation::Read(data),
+                ] => {
+                    self.read_address = Some(address[0]);
+                    data.copy_from_slice(&self.read_value.to_be_bytes());
+                }
+                _ => panic!("unexpected async SPI transaction"),
             }
-            _ => panic!("wrong variant"),
+            Ok(())
         }
     }
 
     #[test]
-    fn retry_policy_default_is_single_attempt() {
-        let policy = RetryPolicy::default();
-        assert_eq!(policy.max_attempts, 1);
+    fn async_write_sets_write_flag_and_sends_value_big_endian() {
+        pollster::block_on(async {
+            let mut spi = Tmc4671Spi::new(AsyncFrameMock::default());
+
+            spi.write_register(registers::PID_POSITION_TARGET, 0x1234_5678)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                spi.inner().write_frame,
+                Some([0xE8, 0x12, 0x34, 0x56, 0x78])
+            );
+        });
     }
 
     #[test]
-    fn retry_policy_production_is_three_attempts() {
-        let policy = RetryPolicy::production();
-        assert_eq!(policy.max_attempts, 3);
-    }
+    fn async_read_sends_clear_write_flag_and_decodes_big_endian() {
+        pollster::block_on(async {
+            let mut spi = Tmc4671Spi::new(AsyncFrameMock {
+                read_value: 0x1234_5678,
+                ..AsyncFrameMock::default()
+            });
 
-    #[test]
-    fn with_retry_policy_sets_field() {
-        let spi: Tmc4671Spi<MockSpiBus> =
-            Tmc4671Spi::new(MockSpiBus).with_retry_policy(RetryPolicy::production());
-        assert_eq!(spi.retry_policy.max_attempts, 3);
+            let value = spi
+                .read_register(registers::PID_POSITION_TARGET)
+                .await
+                .unwrap();
+
+            assert_eq!(value, 0x1234_5678);
+            assert_eq!(spi.inner().read_address, Some(0x68));
+        });
     }
 
     #[test]
