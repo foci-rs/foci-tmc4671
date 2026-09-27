@@ -483,6 +483,8 @@ pub const INTERIM_ACTUAL_VELOCITY_PPTM: SubRegister = SubRegister::new(0x6E, 0x6
 // ---- Motion mode and motor type enums ----
 
 /// TMC4671 motion modes (MODE_RAMP_MODE_MOTION register, bits `[7:0]`).
+///
+/// Values 4..=7 and 9 are reserved (datasheet Rev 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 #[repr(u8)]
 pub enum MotionMode {
@@ -494,16 +496,24 @@ pub enum MotionMode {
     Velocity = 2,
     /// Position control mode.
     Position = 3,
-    /// PRBS flux excitation (identification).
-    PrbsFlux = 4,
-    /// PRBS torque excitation (identification).
-    PrbsTorque = 5,
-    /// PRBS velocity excitation (identification).
-    PrbsVelocity = 6,
-    /// PRBS position excitation (identification).
-    PrbsPosition = 7,
     /// External UQ/UD voltage drive mode.
     UqUdExt = 8,
+}
+
+impl TryFrom<u8> for MotionMode {
+    type Error = u8;
+
+    /// Decode a raw MODE_MOTION value, returning the raw value if it has no variant.
+    fn try_from(raw: u8) -> Result<Self, u8> {
+        match raw {
+            0 => Ok(Self::Stopped),
+            1 => Ok(Self::Torque),
+            2 => Ok(Self::Velocity),
+            3 => Ok(Self::Position),
+            8 => Ok(Self::UqUdExt),
+            other => Err(other),
+        }
+    }
 }
 
 /// TMC4671 motor types.
@@ -520,6 +530,21 @@ pub enum MotorType {
     ThreePhase = 3,
 }
 
+impl TryFrom<u8> for MotorType {
+    type Error = u8;
+
+    /// Decode a raw MOTOR_TYPE value, returning the raw value if it is undefined.
+    fn try_from(raw: u8) -> Result<Self, u8> {
+        match raw {
+            0 => Ok(Self::None),
+            1 => Ok(Self::Dc),
+            2 => Ok(Self::TwoPhase),
+            3 => Ok(Self::ThreePhase),
+            other => Err(other),
+        }
+    }
+}
+
 // ---- Bitfield struct definitions ----
 
 use bitfield_struct::bitfield;
@@ -532,11 +557,26 @@ pub struct MotorTypeNPolePairs {
     /// Number of electrical pole pairs.
     #[bits(16)]
     pub n_pole_pairs: u16,
-    /// Motor type selection. Cast to/from [`MotorType`].
     #[bits(8)]
-    pub motor_type: u8,
+    motor_type_raw: u8,
     #[bits(8)]
     _reserved: u8,
+}
+
+impl MotorTypeNPolePairs {
+    /// Set the motor type.
+    pub const fn with_motor_type(self, motor_type: MotorType) -> Self {
+        self.with_motor_type_raw(motor_type as u8)
+    }
+
+    /// Decode the motor type.
+    ///
+    /// # Errors
+    ///
+    /// Returns the raw field value if it names no defined motor type.
+    pub fn motor_type(&self) -> Result<MotorType, u8> {
+        MotorType::try_from(self.motor_type_raw())
+    }
 }
 
 /// PWM_BBM_H_BBM_L register (0x19).
@@ -600,20 +640,32 @@ pub struct AdcI1ScaleOffset {
 /// Selects the active motion mode and PID sampling configuration.
 #[bitfield(u32)]
 pub struct ModeRampModeMotion {
-    /// Active motion mode. Cast to/from [`MotionMode`].
     #[bits(8)]
-    pub mode_motion: u8,
-    #[bits(8)]
-    _reserved1: u8,
-    /// Feed-forward mode selection.
-    #[bits(8)]
-    pub mode_ff: u8,
+    mode_motion_raw: u8,
+    #[bits(16)]
+    _reserved: u16,
     /// PID sample rate divider (0 = every cycle).
     #[bits(7)]
     pub mode_pid_smpl: u8,
     /// PID type: false = standard, true = advanced.
     #[bits(1)]
     pub mode_pid_type: bool,
+}
+
+impl ModeRampModeMotion {
+    /// Set the active motion mode.
+    pub const fn with_mode_motion(self, mode: MotionMode) -> Self {
+        self.with_mode_motion_raw(mode as u8)
+    }
+
+    /// Decode the active motion mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns the raw field value if it names a reserved or unsupported mode.
+    pub fn mode_motion(&self) -> Result<MotionMode, u8> {
+        MotionMode::try_from(self.mode_motion_raw())
+    }
 }
 
 /// ABN_DECODER_MODE register (0x25).
@@ -896,14 +948,22 @@ mod tests {
     }
 
     #[test]
-    fn motor_type_pole_pairs_round_trip() {
+    fn motor_type_pole_pairs_packs_type_above_pole_pairs() {
         let reg = MotorTypeNPolePairs::new()
-            .with_motor_type(MotorType::TwoPhase as u8)
+            .with_motor_type(MotorType::TwoPhase)
             .with_n_pole_pairs(50);
-        let raw: u32 = reg.into();
-        let decoded = MotorTypeNPolePairs::from(raw);
-        assert_eq!(decoded.motor_type(), MotorType::TwoPhase as u8);
-        assert_eq!(decoded.n_pole_pairs(), 50);
+
+        assert_eq!(reg.into_bits(), (2 << 16) | 50);
+        assert_eq!(reg.motor_type(), Ok(MotorType::TwoPhase));
+    }
+
+    #[test]
+    fn motor_type_readback_rejects_undefined_values() {
+        let reg = MotorTypeNPolePairs::from_bits((4 << 16) | 50);
+
+        assert_eq!(reg.motor_type(), Err(4));
+        assert_eq!(MotorType::try_from(255), Err(255));
+        assert_eq!(MotorType::try_from(3), Ok(MotorType::ThreePhase));
     }
 
     #[test]
@@ -922,27 +982,61 @@ mod tests {
     }
 
     #[test]
-    fn mode_motion_fields() {
+    fn mode_motion_advanced_pi_sets_bit_31() {
         let mode = ModeRampModeMotion::new()
-            .with_mode_motion(MotionMode::Position as u8)
+            .with_mode_motion(MotionMode::Position)
             .with_mode_pid_type(true);
-        let raw: u32 = mode.into();
-        let decoded = ModeRampModeMotion::from(raw);
-        assert_eq!(decoded.mode_motion(), MotionMode::Position as u8);
-        assert!(decoded.mode_pid_type());
-        assert_eq!(decoded.mode_ff(), 0);
+
+        assert_eq!(mode.into_bits(), 0x8000_0003);
+        assert_eq!(mode.mode_motion(), Ok(MotionMode::Position));
     }
 
     #[test]
-    fn abn_decoder_mode_direction() {
-        let mode = AbnDecoderMode::new()
-            .with_abn_direction(true)
-            .with_abn_apol(true);
-        let raw: u32 = mode.into();
-        let decoded = AbnDecoderMode::from(raw);
-        assert!(decoded.abn_direction());
-        assert!(decoded.abn_apol());
-        assert!(!decoded.abn_bpol());
+    fn mode_motion_readback_rejects_reserved_modes() {
+        for raw in [4u8, 5, 6, 7, 9, 255] {
+            assert_eq!(MotionMode::try_from(raw), Err(raw));
+        }
+        let reg = ModeRampModeMotion::from_bits(0x8000_0004);
+
+        assert_eq!(reg.mode_motion(), Err(4));
+        assert_eq!(MotionMode::try_from(8), Ok(MotionMode::UqUdExt));
+    }
+
+    #[test]
+    fn abn_decoder_mode_direction_is_bit_12() {
+        let mode = AbnDecoderMode::new().with_abn_direction(true);
+
+        assert_eq!(mode.into_bits(), 1 << 12);
+    }
+
+    #[test]
+    fn abn_phi_offset_puts_electrical_offset_in_high_half() {
+        let reg = AbnDecoderPhiOffset::new()
+            .with_phi_m_offset(0x1234)
+            .with_phi_e_offset(-1);
+
+        assert_eq!(reg.into_bits(), 0xFFFF_1234);
+    }
+
+    #[test]
+    fn adc_scale_offset_puts_scale_in_high_half() {
+        let reg = AdcI0ScaleOffset::new().with_scale(256).with_offset(33_000);
+
+        assert_eq!(reg.into_bits(), (256 << 16) | 33_000);
+    }
+
+    #[test]
+    fn pwm_bbm_puts_high_side_in_upper_byte() {
+        let reg = PwmBbmHBbmL::new().with_pwm_bbm_h(0x12).with_pwm_bbm_l(0x34);
+
+        assert_eq!(reg.into_bits(), 0x1234);
+    }
+
+    #[test]
+    fn pwm_sv_chop_sv_enable_is_bit_8() {
+        let reg = PwmSvChop::new().with_pwm_chop(7).with_pwm_sv(true);
+
+        assert_eq!(reg.into_bits(), 0x107);
     }
 
     #[test]
