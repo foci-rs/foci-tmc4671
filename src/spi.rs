@@ -42,6 +42,15 @@ impl RetryPolicy {
     }
 }
 
+/// Address-to-data pause for reads above 2 MHz SCK (datasheet Table 2, tSCKpause).
+const READ_PAUSE_NS: u32 = 500;
+
+/// 5-byte write frame: the address with the write flag (`0x80`), then the value big-endian.
+const fn write_frame(reg: Register, value: u32) -> [u8; 5] {
+    let bytes = value.to_be_bytes();
+    [reg.addr() | 0x80, bytes[0], bytes[1], bytes[2], bytes[3]]
+}
+
 impl<E> From<E> for SpiError<E> {
     fn from(e: E) -> Self {
         SpiError::Bus(e)
@@ -97,7 +106,7 @@ where
         self.spi
             .transaction(&mut [
                 Operation::Write(&addr),
-                Operation::DelayNs(500),
+                Operation::DelayNs(READ_PAUSE_NS),
                 Operation::Read(&mut data),
             ])
             .await?;
@@ -109,9 +118,7 @@ where
     /// Sends a 5-byte frame with the register address ORed with `0x80` (write
     /// flag) in byte 0, followed by the value in big-endian order.
     pub async fn write_register(&mut self, reg: Register, value: u32) -> Result<(), SpiError<E>> {
-        let bytes = value.to_be_bytes();
-        let buf = [reg.addr() | 0x80, bytes[0], bytes[1], bytes[2], bytes[3]];
-        self.spi.write(&buf).await?;
+        self.spi.write(&write_frame(reg, value)).await?;
         Ok(())
     }
 
@@ -229,9 +236,7 @@ where
         reg: Register,
         value: u32,
     ) -> Result<(), SpiError<E>> {
-        let bytes = value.to_be_bytes();
-        let frame = [reg.addr() | 0x80, bytes[0], bytes[1], bytes[2], bytes[3]];
-        embedded_hal::spi::SpiDevice::write(&mut self.spi, &frame)?;
+        embedded_hal::spi::SpiDevice::write(&mut self.spi, &write_frame(reg, value))?;
         Ok(())
     }
 
@@ -246,7 +251,7 @@ where
             &mut self.spi,
             &mut [
                 embedded_hal::spi::Operation::Write(&addr),
-                embedded_hal::spi::Operation::DelayNs(500),
+                embedded_hal::spi::Operation::DelayNs(READ_PAUSE_NS),
                 embedded_hal::spi::Operation::Read(&mut data),
             ],
         )?;
