@@ -587,6 +587,33 @@ pub struct AdcI1ScaleOffset {
     pub scale: i16,
 }
 
+/// ADC_I_SELECT register (0x0A).
+///
+/// Routes raw current ADC channels to the FOC phase inputs (datasheet Rev 1, section 4.5.4).
+/// The UX/V/WY fields choose among ADC_I0, ADC_I1 and the computed I2 (values 0..=2).
+#[bitfield(u32)]
+pub struct AdcISelect {
+    /// Source of raw current ADC_I0_RAW (0..=3: sigma-delta I0/I1, external I0/I1).
+    #[bits(8)]
+    pub i0_select: u8,
+    /// Source of raw current ADC_I1_RAW (0..=3: sigma-delta I0/I1, external I0/I1).
+    #[bits(8)]
+    pub i1_select: u8,
+    #[bits(8)]
+    _reserved0: u8,
+    /// Input assigned to phase UX.
+    #[bits(2)]
+    pub ux_select: u8,
+    /// Input assigned to phase V.
+    #[bits(2)]
+    pub v_select: u8,
+    /// Input assigned to phase WY.
+    #[bits(2)]
+    pub wy_select: u8,
+    #[bits(2)]
+    _reserved1: u8,
+}
+
 /// MODE_RAMP_MODE_MOTION register (0x63).
 ///
 /// Selects the active motion mode and PID sampling configuration.
@@ -819,6 +846,18 @@ pub struct AbnDecoderPhiOffset {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adc_i_select_matches_datasheet_reset_value() {
+        let reset = AdcISelect::new()
+            .with_i0_select(0)
+            .with_i1_select(1)
+            .with_ux_select(0)
+            .with_v_select(1)
+            .with_wy_select(2);
+
+        assert_eq!(reset.into_bits(), (2 << 28) | (1 << 26) | (1 << 8));
+    }
 
     #[test]
     fn register_addr_masking() {
