@@ -48,21 +48,16 @@ impl SubRegister {
     }
 }
 
-// ---- Direct register address constants ----
-
-// Chip identification (sub-register multiplexed via 0x00/0x01)
 /// CHIPINFO data register.
 pub const CHIPINFO_DATA: Register = Register::new(0x00);
 /// CHIPINFO address/selector register.
 pub const CHIPINFO_ADDR: Register = Register::new(0x01);
 
-// ADC raw data (sub-register multiplexed via 0x02/0x03)
 /// ADC raw data register.
 pub const ADC_RAW_DATA: Register = Register::new(0x02);
 /// ADC raw address/selector register.
 pub const ADC_RAW_ADDR: Register = Register::new(0x03);
 
-// Delta-sigma ADC configuration
 /// Delta-sigma ADC motor config B and A.
 pub const DSADC_MCFG_B_MCFG_A: Register = Register::new(0x04);
 /// Delta-sigma ADC motor clock A.
@@ -72,7 +67,6 @@ pub const DSADC_MCLK_B: Register = Register::new(0x06);
 /// Delta-sigma ADC decimation ratio B and A.
 pub const DSADC_MDEC_B_MDEC_A: Register = Register::new(0x07);
 
-// ADC scale and offset
 /// ADC I1 scale and offset.
 pub const ADC_I1_SCALE_OFFSET: Register = Register::new(0x08);
 /// ADC I0 scale and offset.
@@ -84,7 +78,6 @@ pub const ADC_I1_I0_EXT: Register = Register::new(0x0B);
 /// Delta-sigma analog input stage configuration.
 pub const DS_ANALOG_INPUT_STAGE_CFG: Register = Register::new(0x0C);
 
-// Analog encoder scale and offset
 /// Analog encoder channel 0 scale and offset.
 pub const AENC_0_SCALE_OFFSET: Register = Register::new(0x0D);
 /// Analog encoder channel 1 scale and offset.
@@ -94,7 +87,6 @@ pub const AENC_2_SCALE_OFFSET: Register = Register::new(0x0F);
 /// Analog encoder channel selection.
 pub const AENC_SELECT: Register = Register::new(0x11);
 
-// ADC monitor
 /// ADC IWY and IUX values.
 pub const ADC_IWY_IUX: Register = Register::new(0x12);
 /// ADC IV value.
@@ -104,7 +96,6 @@ pub const AENC_WY_UX: Register = Register::new(0x15);
 /// Analog encoder VN value.
 pub const AENC_VN: Register = Register::new(0x16);
 
-// PWM configuration
 /// PWM output polarities.
 pub const PWM_POLARITIES: Register = Register::new(0x17);
 /// PWM maximum count value.
@@ -114,13 +105,11 @@ pub const PWM_BBM_H_BBM_L: Register = Register::new(0x19);
 /// PWM space-vector chop configuration.
 pub const PWM_SV_CHOP: Register = Register::new(0x1A);
 
-// Motor configuration
 /// Motor type and number of pole pairs.
 pub const MOTOR_TYPE_N_POLE_PAIRS: Register = Register::new(0x1B);
 /// External electrical angle PHI_E.
 pub const PHI_E_EXT: Register = Register::new(0x1C);
 
-// Open-loop
 /// Open-loop mode configuration.
 pub const OPENLOOP_MODE: Register = Register::new(0x1F);
 /// Open-loop acceleration.
@@ -132,11 +121,9 @@ pub const OPENLOOP_VELOCITY_ACTUAL: Register = Register::new(0x22);
 /// Open-loop electrical angle.
 pub const OPENLOOP_PHI: Register = Register::new(0x23);
 
-// External UQ/UD
 /// External UQ and UD voltage targets.
 pub const UQ_UD_EXT: Register = Register::new(0x24);
 
-// ABN encoder
 /// ABN decoder mode configuration.
 pub const ABN_DECODER_MODE: Register = Register::new(0x25);
 /// ABN decoder pulses per revolution.
@@ -150,7 +137,6 @@ pub const ABN_DECODER_PHI_E_PHI_M_OFFSET: Register = Register::new(0x29);
 /// ABN decoder PHI_E and PHI_M actual values.
 pub const ABN_DECODER_PHI_E_PHI_M: Register = Register::new(0x2A);
 
-// ABN 2 encoder
 /// ABN2 decoder mode configuration.
 pub const ABN_2_DECODER_MODE: Register = Register::new(0x2C);
 /// ABN2 decoder pulses per revolution.
@@ -164,7 +150,6 @@ pub const ABN_2_DECODER_PHI_M_OFFSET: Register = Register::new(0x30);
 /// ABN2 decoder PHI_M actual value.
 pub const ABN_2_DECODER_PHI_M: Register = Register::new(0x31);
 
-// Hall sensor
 /// Hall sensor mode configuration.
 pub const HALL_MODE: Register = Register::new(0x33);
 /// Hall sensor positions for 60 and 0 degree sectors.
@@ -182,7 +167,6 @@ pub const HALL_PHI_E_INTERPOLATED_PHI_E: Register = Register::new(0x39);
 /// Hall sensor PHI_M value.
 pub const HALL_PHI_M: Register = Register::new(0x3A);
 
-// Analog encoder decoder
 /// Analog encoder decoder mode configuration.
 pub const AENC_DECODER_MODE: Register = Register::new(0x3B);
 /// Analog encoder decoder N threshold.
@@ -204,13 +188,11 @@ pub const AENC_DECODER_PHI_E_PHI_M_OFFSET: Register = Register::new(0x45);
 /// Analog encoder decoder PHI_E and PHI_M actual values.
 pub const AENC_DECODER_PHI_E_PHI_M: Register = Register::new(0x46);
 
-// Config data (sub-register multiplexed via 0x4D/0x4E)
 /// Configuration data register.
 pub const CONFIG_DATA: Register = Register::new(0x4D);
 /// Configuration address/selector register.
 pub const CONFIG_ADDR: Register = Register::new(0x4E);
 
-// Selection registers
 /// Velocity feedback source selection.
 pub const VELOCITY_SELECTION: Register = Register::new(0x50);
 /// Position feedback source selection.
@@ -220,7 +202,6 @@ pub const PHI_E_SELECTION: Register = Register::new(0x52);
 /// Electrical angle PHI_E actual value.
 pub const PHI_E: Register = Register::new(0x53);
 
-// PID gains
 /// PID flux P and I gains.
 pub const PID_FLUX_P_FLUX_I: Register = Register::new(0x54);
 /// PID torque P and I gains.
@@ -230,7 +211,6 @@ pub const PID_VELOCITY_P_VELOCITY_I: Register = Register::new(0x58);
 /// PID position P and I gains.
 pub const PID_POSITION_P_POSITION_I: Register = Register::new(0x5A);
 
-// PID limits
 /// PID torque and flux target derivative limits.
 pub const PID_TORQUE_FLUX_TARGET_DDT_LIMITS: Register = Register::new(0x5C);
 /// PID output UQ and UD limits.
@@ -246,11 +226,9 @@ pub const PID_POSITION_LIMIT_LOW: Register = Register::new(0x61);
 /// PID position upper limit.
 pub const PID_POSITION_LIMIT_HIGH: Register = Register::new(0x62);
 
-// Mode and motion
 /// Ramp mode and motion mode configuration.
 pub const MODE_RAMP_MODE_MOTION: Register = Register::new(0x63);
 
-// PID targets and actuals
 /// PID torque and flux targets.
 pub const PID_TORQUE_FLUX_TARGET: Register = Register::new(0x64);
 /// PID torque and flux offsets.
@@ -268,7 +246,6 @@ pub const PID_VELOCITY_ACTUAL: Register = Register::new(0x6A);
 /// PID position actual value.
 pub const PID_POSITION_ACTUAL: Register = Register::new(0x6B);
 
-// Diagnostic (sub-register multiplexed)
 /// PID error data register.
 pub const PID_ERROR_DATA: Register = Register::new(0x6C);
 /// PID error address/selector register.
@@ -278,37 +255,28 @@ pub const INTERIM_DATA: Register = Register::new(0x6E);
 /// Interim address/selector register.
 pub const INTERIM_ADDR: Register = Register::new(0x6F);
 
-// Voltage monitoring
 /// ADC VM (supply voltage) limits.
 pub const ADC_VM_LIMITS: Register = Register::new(0x75);
 
-// I/O
 /// Raw digital input states.
 pub const TMC4671_INPUTS_RAW: Register = Register::new(0x76);
 /// Raw digital output states.
 pub const TMC4671_OUTPUTS_RAW: Register = Register::new(0x77);
 
-// Step width
 /// Step width for step/dir interface.
 pub const STEP_WIDTH: Register = Register::new(0x78);
 
-// UART
 /// UART baud rate configuration.
 pub const UART_BPS: Register = Register::new(0x79);
 
-// GPIO
 /// GPIO and delta-sigma ADC input configuration.
 pub const GPIO_DSADCI_CONFIG: Register = Register::new(0x7B);
 
-// Status
 /// Status flags register.
 pub const STATUS_FLAGS: Register = Register::new(0x7C);
 /// Status flags mask register.
 pub const STATUS_MASK: Register = Register::new(0x7D);
 
-// ---- Sub-register constants ----
-
-// CHIPINFO sub-registers (data at 0x00, selector at 0x01)
 /// Chip type identifier.
 pub const CHIPINFO_SI_TYPE: SubRegister = SubRegister::new(0x00, 0x01, 0);
 /// Chip silicon version.
@@ -322,7 +290,6 @@ pub const CHIPINFO_SI_VARIANT: SubRegister = SubRegister::new(0x00, 0x01, 4);
 /// Chip silicon build number.
 pub const CHIPINFO_SI_BUILD: SubRegister = SubRegister::new(0x00, 0x01, 5);
 
-// ADC_RAW sub-registers (data at 0x02, selector at 0x03)
 /// Raw ADC I1 and I0 current samples.
 pub const ADC_I1_RAW_ADC_I0_RAW: SubRegister = SubRegister::new(0x02, 0x03, 0);
 /// Raw ADC general purpose input A and VM voltage.
@@ -332,8 +299,6 @@ pub const ADC_AENC_UX_RAW_ADC_AGPI_B_RAW: SubRegister = SubRegister::new(0x02, 0
 /// Raw ADC analog encoder WY and VN.
 pub const ADC_AENC_WY_RAW_ADC_AENC_VN_RAW: SubRegister = SubRegister::new(0x02, 0x03, 3);
 
-// CONFIG sub-registers (data at 0x4D, selector at 0x4E)
-// Biquad filter coefficients — position loop (X)
 /// Biquad position filter A1 coefficient.
 pub const CONFIG_BIQUAD_X_A_1: SubRegister = SubRegister::new(0x4D, 0x4E, 1);
 /// Biquad position filter A2 coefficient.
@@ -346,7 +311,6 @@ pub const CONFIG_BIQUAD_X_B_1: SubRegister = SubRegister::new(0x4D, 0x4E, 5);
 pub const CONFIG_BIQUAD_X_B_2: SubRegister = SubRegister::new(0x4D, 0x4E, 6);
 /// Biquad position filter enable flag.
 pub const CONFIG_BIQUAD_X_ENABLE: SubRegister = SubRegister::new(0x4D, 0x4E, 7);
-// Biquad filter coefficients — velocity loop (V)
 /// Biquad velocity filter A1 coefficient.
 pub const CONFIG_BIQUAD_V_A_1: SubRegister = SubRegister::new(0x4D, 0x4E, 9);
 /// Biquad velocity filter A2 coefficient.
@@ -359,7 +323,6 @@ pub const CONFIG_BIQUAD_V_B_1: SubRegister = SubRegister::new(0x4D, 0x4E, 13);
 pub const CONFIG_BIQUAD_V_B_2: SubRegister = SubRegister::new(0x4D, 0x4E, 14);
 /// Biquad velocity filter enable flag.
 pub const CONFIG_BIQUAD_V_ENABLE: SubRegister = SubRegister::new(0x4D, 0x4E, 15);
-// Biquad filter coefficients — torque loop (T)
 /// Biquad torque filter A1 coefficient.
 pub const CONFIG_BIQUAD_T_A_1: SubRegister = SubRegister::new(0x4D, 0x4E, 17);
 /// Biquad torque filter A2 coefficient.
@@ -372,7 +335,6 @@ pub const CONFIG_BIQUAD_T_B_1: SubRegister = SubRegister::new(0x4D, 0x4E, 21);
 pub const CONFIG_BIQUAD_T_B_2: SubRegister = SubRegister::new(0x4D, 0x4E, 22);
 /// Biquad torque filter enable flag.
 pub const CONFIG_BIQUAD_T_ENABLE: SubRegister = SubRegister::new(0x4D, 0x4E, 23);
-// Biquad filter coefficients — flux loop (F)
 /// Biquad flux filter A1 coefficient.
 pub const CONFIG_BIQUAD_F_A_1: SubRegister = SubRegister::new(0x4D, 0x4E, 25);
 /// Biquad flux filter A2 coefficient.
@@ -385,7 +347,6 @@ pub const CONFIG_BIQUAD_F_B_1: SubRegister = SubRegister::new(0x4D, 0x4E, 29);
 pub const CONFIG_BIQUAD_F_B_2: SubRegister = SubRegister::new(0x4D, 0x4E, 30);
 /// Biquad flux filter enable flag.
 pub const CONFIG_BIQUAD_F_ENABLE: SubRegister = SubRegister::new(0x4D, 0x4E, 31);
-// Feedforward
 /// Feedforward velocity gain.
 pub const CONFIG_FEED_FORWARD_VELOCITY_GAIN: SubRegister = SubRegister::new(0x4D, 0x4E, 40);
 /// Feedforward velocity filter time constant.
@@ -398,21 +359,17 @@ pub const CONFIG_FEED_FORWARD_TORQUE_FILTER_CONSTANT: SubRegister =
     SubRegister::new(0x4D, 0x4E, 43);
 /// Minimum position deviation used by the period-based velocity meter.
 pub const CONFIG_VELOCITY_METER_PPTM_MIN_POS_DEV: SubRegister = SubRegister::new(0x4D, 0x4E, 50);
-// Reference switch
 /// Reference switch configuration.
 pub const CONFIG_REF_SWITCH_CONFIG: SubRegister = SubRegister::new(0x4D, 0x4E, 51);
-// Single pin interface
 /// Single-pin interface status configuration.
 pub const CONFIG_SINGLE_PIN_IF_STATUS_CFG: SubRegister = SubRegister::new(0x4D, 0x4E, 60);
 /// Single-pin interface scale and offset.
 pub const CONFIG_SINGLE_PIN_IF_SCALE_OFFSET: SubRegister = SubRegister::new(0x4D, 0x4E, 61);
-// Advanced PI representation
 /// Advanced PI controller representation mode.
 pub const CONFIG_ADVANCED_PI_REPRESENT: SubRegister = SubRegister::new(0x4D, 0x4E, 62);
 /// Q8.8 proportional and Q4.12 integral representation for all PID loops.
 pub const ADVANCED_PI_REPRESENT_P_Q8_8_I_Q4_12: u32 = 0x15;
 
-// PID_ERROR sub-registers (data at 0x6C, selector at 0x6D)
 /// PID torque error value.
 pub const PID_ERROR_PID_TORQUE_ERROR: SubRegister = SubRegister::new(0x6C, 0x6D, 0);
 /// PID flux error value.
@@ -430,7 +387,6 @@ pub const PID_ERROR_PID_VELOCITY_ERROR_SUM: SubRegister = SubRegister::new(0x6C,
 /// PID position integrator error sum.
 pub const PID_ERROR_PID_POSITION_ERROR_SUM: SubRegister = SubRegister::new(0x6C, 0x6D, 7);
 
-// INTERIM sub-registers (data at 0x6E, selector at 0x6F)
 /// PID input target torque.
 pub const INTERIM_PIDIN_TARGET_TORQUE: SubRegister = SubRegister::new(0x6E, 0x6F, 0);
 /// PID input target flux.
@@ -479,8 +435,6 @@ pub const INTERIM_FF_VELOCITY: SubRegister = SubRegister::new(0x6E, 0x6F, 27);
 pub const INTERIM_FF_TORQUE: SubRegister = SubRegister::new(0x6E, 0x6F, 28);
 /// Period-based velocity meter's actual-velocity monitor.
 pub const INTERIM_ACTUAL_VELOCITY_PPTM: SubRegister = SubRegister::new(0x6E, 0x6F, 29);
-
-// ---- Motion mode and motor type enums ----
 
 /// TMC4671 motion modes (MODE_RAMP_MODE_MOTION register, bits `[7:0]`).
 ///
@@ -544,8 +498,6 @@ impl TryFrom<u8> for MotorType {
         }
     }
 }
-
-// ---- Bitfield struct definitions ----
 
 use bitfield_struct::bitfield;
 
@@ -904,7 +856,6 @@ mod tests {
         assert_eq!(CONFIG_BIQUAD_X_A_1.data.addr(), 0x4D);
         assert_eq!(CONFIG_BIQUAD_V_A_1.data.addr(), 0x4D);
         assert_eq!(CONFIG_ADVANCED_PI_REPRESENT.data.addr(), 0x4D);
-        // All use the same selector register
         assert_eq!(CONFIG_BIQUAD_X_A_1.addr.addr(), 0x4E);
         assert_eq!(CONFIG_ADVANCED_PI_REPRESENT.addr.addr(), 0x4E);
     }
@@ -1062,16 +1013,13 @@ mod tests {
     #[test]
     fn pid_torque_flux_target_flux_is_low_half() {
         // Datasheet 0x64: PID_FLUX_TARGET = s16(15:0), PID_TORQUE_TARGET = s16(31:16)
-        // For D-axis alignment, flux target must be in bits[15:0].
         let target = PidTorqueFluxTarget::new()
             .with_pid_flux_target(1000)
             .with_pid_torque_target(0);
         let raw: u32 = target.into();
-        // Flux in low 16 bits, torque (0) in high 16 bits
         assert_eq!(raw & 0xFFFF, 1000u32, "flux target must be in bits[15:0]");
         assert_eq!(raw >> 16, 0, "torque target must be in bits[31:16]");
 
-        // Compare with UQ_UD_EXT layout — UD is also in bits[15:0]
         let uq_ud = UqUdExt::new().with_ud_ext(1000).with_uq_ext(0);
         let uq_ud_raw: u32 = uq_ud.into();
         assert_eq!(
