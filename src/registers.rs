@@ -232,6 +232,9 @@ pub const MODE_RAMP_MODE_MOTION: Register = Register::new(0x63);
 /// PID torque and flux targets.
 pub const PID_TORQUE_FLUX_TARGET: Register = Register::new(0x64);
 /// PID torque and flux offsets.
+///
+/// The chip adds this after the target limiter ([`PID_TORQUE_FLUX_LIMITS`]) and does not clamp
+/// it, so the limit register does not bound target plus offset. The firmware bounds the offset.
 pub const PID_TORQUE_FLUX_OFFSET: Register = Register::new(0x65);
 /// PID velocity target.
 pub const PID_VELOCITY_TARGET: Register = Register::new(0x66);
