@@ -107,7 +107,7 @@ pub const PWM_SV_CHOP: Register = Register::new(0x1A);
 
 /// Motor type and number of pole pairs.
 pub const MOTOR_TYPE_N_POLE_PAIRS: Register = Register::new(0x1B);
-/// External electrical angle PHI_E.
+/// External electrical angle `PHI_E`.
 pub const PHI_E_EXT: Register = Register::new(0x1C);
 
 /// Open-loop mode configuration.
@@ -132,9 +132,9 @@ pub const ABN_DECODER_PPR: Register = Register::new(0x26);
 pub const ABN_DECODER_COUNT: Register = Register::new(0x27);
 /// ABN decoder count at N pulse.
 pub const ABN_DECODER_COUNT_N: Register = Register::new(0x28);
-/// ABN decoder PHI_E and PHI_M offsets.
+/// ABN decoder `PHI_E` and `PHI_M` offsets.
 pub const ABN_DECODER_PHI_E_PHI_M_OFFSET: Register = Register::new(0x29);
-/// ABN decoder PHI_E and PHI_M actual values.
+/// ABN decoder `PHI_E` and `PHI_M` actual values.
 pub const ABN_DECODER_PHI_E_PHI_M: Register = Register::new(0x2A);
 
 /// ABN2 decoder mode configuration.
@@ -145,9 +145,9 @@ pub const ABN_2_DECODER_PPR: Register = Register::new(0x2D);
 pub const ABN_2_DECODER_COUNT: Register = Register::new(0x2E);
 /// ABN2 decoder count at N pulse.
 pub const ABN_2_DECODER_COUNT_N: Register = Register::new(0x2F);
-/// ABN2 decoder PHI_M offset.
+/// ABN2 decoder `PHI_M` offset.
 pub const ABN_2_DECODER_PHI_M_OFFSET: Register = Register::new(0x30);
-/// ABN2 decoder PHI_M actual value.
+/// ABN2 decoder `PHI_M` actual value.
 pub const ABN_2_DECODER_PHI_M: Register = Register::new(0x31);
 
 /// Hall sensor mode configuration.
@@ -158,24 +158,24 @@ pub const HALL_POSITION_060_000: Register = Register::new(0x34);
 pub const HALL_POSITION_180_120: Register = Register::new(0x35);
 /// Hall sensor positions for 300 and 240 degree sectors.
 pub const HALL_POSITION_300_240: Register = Register::new(0x36);
-/// Hall sensor PHI_E and PHI_M offsets.
+/// Hall sensor `PHI_E` and `PHI_M` offsets.
 pub const HALL_PHI_E_PHI_M_OFFSET: Register = Register::new(0x37);
 /// Hall sensor maximum delta-phi.
 pub const HALL_DPHI_MAX: Register = Register::new(0x38);
-/// Hall sensor interpolated and raw PHI_E values.
+/// Hall sensor interpolated and raw `PHI_E` values.
 pub const HALL_PHI_E_INTERPOLATED_PHI_E: Register = Register::new(0x39);
-/// Hall sensor PHI_M value.
+/// Hall sensor `PHI_M` value.
 pub const HALL_PHI_M: Register = Register::new(0x3A);
 
 /// Analog encoder decoder mode configuration.
 pub const AENC_DECODER_MODE: Register = Register::new(0x3B);
 /// Analog encoder decoder N threshold.
 pub const AENC_DECODER_N_THRESHOLD: Register = Register::new(0x3C);
-/// Analog encoder decoder raw PHI_A value.
+/// Analog encoder decoder raw `PHI_A` value.
 pub const AENC_DECODER_PHI_A_RAW: Register = Register::new(0x3D);
-/// Analog encoder decoder PHI_A offset.
+/// Analog encoder decoder `PHI_A` offset.
 pub const AENC_DECODER_PHI_A_OFFSET: Register = Register::new(0x3E);
-/// Analog encoder decoder PHI_A value.
+/// Analog encoder decoder `PHI_A` value.
 pub const AENC_DECODER_PHI_A: Register = Register::new(0x3F);
 /// Analog encoder decoder pulses per revolution.
 pub const AENC_DECODER_PPR: Register = Register::new(0x40);
@@ -183,9 +183,9 @@ pub const AENC_DECODER_PPR: Register = Register::new(0x40);
 pub const AENC_DECODER_COUNT: Register = Register::new(0x41);
 /// Analog encoder decoder count at N pulse.
 pub const AENC_DECODER_COUNT_N: Register = Register::new(0x42);
-/// Analog encoder decoder PHI_E and PHI_M offsets.
+/// Analog encoder decoder `PHI_E` and `PHI_M` offsets.
 pub const AENC_DECODER_PHI_E_PHI_M_OFFSET: Register = Register::new(0x45);
-/// Analog encoder decoder PHI_E and PHI_M actual values.
+/// Analog encoder decoder `PHI_E` and `PHI_M` actual values.
 pub const AENC_DECODER_PHI_E_PHI_M: Register = Register::new(0x46);
 
 /// Configuration data register.
@@ -197,9 +197,9 @@ pub const CONFIG_ADDR: Register = Register::new(0x4E);
 pub const VELOCITY_SELECTION: Register = Register::new(0x50);
 /// Position feedback source selection.
 pub const POSITION_SELECTION: Register = Register::new(0x51);
-/// PHI_E source selection.
+/// `PHI_E` source selection.
 pub const PHI_E_SELECTION: Register = Register::new(0x52);
-/// Electrical angle PHI_E actual value.
+/// Electrical angle `PHI_E` actual value.
 pub const PHI_E: Register = Register::new(0x53);
 
 /// PID flux P and I gains.
@@ -439,7 +439,7 @@ pub const INTERIM_FF_TORQUE: SubRegister = SubRegister::new(0x6E, 0x6F, 28);
 /// Period-based velocity meter's actual-velocity monitor.
 pub const INTERIM_ACTUAL_VELOCITY_PPTM: SubRegister = SubRegister::new(0x6E, 0x6F, 29);
 
-/// TMC4671 motion modes (MODE_RAMP_MODE_MOTION register, bits `[7:0]`).
+/// TMC4671 motion modes (`MODE_RAMP_MODE_MOTION` register, bits `[7:0]`).
 ///
 /// Values 4..=7 and 9 are reserved (datasheet Rev 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
@@ -460,7 +460,7 @@ pub enum MotionMode {
 impl TryFrom<u8> for MotionMode {
     type Error = u8;
 
-    /// Decode a raw MODE_MOTION value, returning the raw value if it has no variant.
+    /// Decode a raw `MODE_MOTION` value, returning the raw value if it has no variant.
     fn try_from(raw: u8) -> Result<Self, u8> {
         match raw {
             0 => Ok(Self::Stopped),
@@ -490,7 +490,7 @@ pub enum MotorType {
 impl TryFrom<u8> for MotorType {
     type Error = u8;
 
-    /// Decode a raw MOTOR_TYPE value, returning the raw value if it is undefined.
+    /// Decode a raw `MOTOR_TYPE` value, returning the raw value if it is undefined.
     fn try_from(raw: u8) -> Result<Self, u8> {
         match raw {
             0 => Ok(Self::None),
@@ -504,7 +504,7 @@ impl TryFrom<u8> for MotorType {
 
 use bitfield_struct::bitfield;
 
-/// MOTOR_TYPE_N_POLE_PAIRS register (0x1B).
+/// `MOTOR_TYPE_N_POLE_PAIRS` register (0x1B).
 ///
 /// Configures the motor type and number of electrical pole pairs.
 #[bitfield(u32)]
@@ -534,7 +534,7 @@ impl MotorTypeNPolePairs {
     }
 }
 
-/// PWM_BBM_H_BBM_L register (0x19).
+/// `PWM_BBM_H_BBM_L` register (0x19).
 ///
 /// Break-before-make dead-time for high-side and low-side gate drivers.
 #[bitfield(u32)]
@@ -549,7 +549,7 @@ pub struct PwmBbmHBbmL {
     _reserved: u16,
 }
 
-/// PWM_SV_CHOP register (0x1A).
+/// `PWM_SV_CHOP` register (0x1A).
 ///
 /// Space-vector and chopper PWM configuration.
 #[bitfield(u32)]
@@ -564,7 +564,7 @@ pub struct PwmSvChop {
     _reserved: u32,
 }
 
-/// ADC_I0_SCALE_OFFSET register (0x09).
+/// `ADC_I0_SCALE_OFFSET` register (0x09).
 ///
 /// Current sense amplifier I0 calibration: offset and gain scale.
 #[bitfield(u32)]
@@ -577,7 +577,7 @@ pub struct AdcI0ScaleOffset {
     pub scale: i16,
 }
 
-/// ADC_I1_SCALE_OFFSET register (0x08).
+/// `ADC_I1_SCALE_OFFSET` register (0x08).
 ///
 /// Current sense amplifier I1 calibration: offset and gain scale.
 #[bitfield(u32)]
@@ -590,16 +590,16 @@ pub struct AdcI1ScaleOffset {
     pub scale: i16,
 }
 
-/// ADC_I_SELECT register (0x0A).
+/// `ADC_I_SELECT` register (0x0A).
 ///
 /// Routes raw current ADC channels to the FOC phase inputs (datasheet Rev 1, section 4.5.4).
-/// The UX/V/WY fields choose among ADC_I0, ADC_I1 and the computed I2 (values 0..=2).
+/// The UX/V/WY fields choose among `ADC_I0`, `ADC_I1` and the computed I2 (values 0..=2).
 #[bitfield(u32)]
 pub struct AdcISelect {
-    /// Source of raw current ADC_I0_RAW (0..=3: sigma-delta I0/I1, external I0/I1).
+    /// Source of raw current `ADC_I0_RAW` (0..=3: sigma-delta I0/I1, external I0/I1).
     #[bits(8)]
     pub i0_select: u8,
-    /// Source of raw current ADC_I1_RAW (0..=3: sigma-delta I0/I1, external I0/I1).
+    /// Source of raw current `ADC_I1_RAW` (0..=3: sigma-delta I0/I1, external I0/I1).
     #[bits(8)]
     pub i1_select: u8,
     #[bits(8)]
@@ -617,7 +617,7 @@ pub struct AdcISelect {
     _reserved1: u8,
 }
 
-/// MODE_RAMP_MODE_MOTION register (0x63).
+/// `MODE_RAMP_MODE_MOTION` register (0x63).
 ///
 /// Selects the active motion mode and PID sampling configuration.
 #[bitfield(u32)]
@@ -650,7 +650,7 @@ impl ModeRampModeMotion {
     }
 }
 
-/// ABN_DECODER_MODE register (0x25).
+/// `ABN_DECODER_MODE` register (0x25).
 ///
 /// ABN incremental encoder interface configuration.
 #[bitfield(u32)]
@@ -681,10 +681,10 @@ pub struct AbnDecoderMode {
     _reserved3: u32,
 }
 
-/// STATUS_FLAGS (0x7C) and STATUS_MASK (0x7D) register layout.
+/// `STATUS_FLAGS` (0x7C) and `STATUS_MASK` (0x7D) register layout.
 ///
-/// Both registers share this bit layout. Read STATUS_FLAGS for current fault state;
-/// write STATUS_MASK to enable interrupt generation per flag.
+/// Both registers share this bit layout. Read `STATUS_FLAGS` for current fault state;
+/// write `STATUS_MASK` to enable interrupt generation per flag.
 #[bitfield(u32)]
 pub struct StatusFlags {
     /// Position PID target limit reached.
@@ -779,7 +779,7 @@ pub struct StatusFlags {
     _reserved6: bool,
 }
 
-/// VELOCITY_SELECTION register (0x50).
+/// `VELOCITY_SELECTION` register (0x50).
 ///
 /// Selects which feedback source drives velocity control and the velocity meter.
 #[bitfield(u32)]
@@ -794,9 +794,9 @@ pub struct VelocitySelection {
     _reserved: u16,
 }
 
-/// UQ_UD_EXT register (0x24).
+/// `UQ_UD_EXT` register (0x24).
 ///
-/// External voltage vector applied in UQ_UD_EXT motion mode.
+/// External voltage vector applied in `UQ_UD_EXT` motion mode.
 #[bitfield(u32)]
 pub struct UqUdExt {
     /// D-axis voltage component (signed).
@@ -807,7 +807,7 @@ pub struct UqUdExt {
     pub uq_ext: i16,
 }
 
-/// PID_TORQUE_FLUX_TARGET register (0x64).
+/// `PID_TORQUE_FLUX_TARGET` register (0x64).
 ///
 /// Target setpoints for torque and flux current controllers.
 #[bitfield(u32)]
@@ -820,7 +820,7 @@ pub struct PidTorqueFluxTarget {
     pub pid_torque_target: i16,
 }
 
-/// PID_TORQUE_FLUX_ACTUAL register (0x69).
+/// `PID_TORQUE_FLUX_ACTUAL` register (0x69).
 ///
 /// Measured torque and flux current feedback values.
 #[bitfield(u32)]
@@ -833,15 +833,15 @@ pub struct PidTorqueFluxActual {
     pub pid_torque_actual: i16,
 }
 
-/// ABN_DECODER_PHI_E_PHI_M_OFFSET register (0x29).
+/// `ABN_DECODER_PHI_E_PHI_M_OFFSET` register (0x29).
 ///
 /// Angular offset corrections applied to ABN encoder mechanical and electrical angles.
 #[bitfield(u32)]
 pub struct AbnDecoderPhiOffset {
-    /// Mechanical angle offset (signed, applied to PHI_M).
+    /// Mechanical angle offset (signed, applied to `PHI_M`).
     #[bits(16)]
     pub phi_m_offset: i16,
-    /// Electrical angle offset (signed, applied to PHI_E).
+    /// Electrical angle offset (signed, applied to `PHI_E`).
     #[bits(16)]
     pub phi_e_offset: i16,
 }

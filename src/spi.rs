@@ -115,7 +115,7 @@ where
 
     /// Write a 32-bit register value.
     ///
-    /// Sends a 5-byte frame with the register address ORed with `0x80` (write
+    /// Sends a 5-byte frame with the register address `ORed` with `0x80` (write
     /// flag) in byte 0, followed by the value in big-endian order.
     pub async fn write_register(&mut self, reg: Register, value: u32) -> Result<(), SpiError<E>> {
         self.spi.write(&write_frame(reg, value)).await?;
