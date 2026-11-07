@@ -580,8 +580,7 @@ mod tests {
                 .await;
             assert!(
                 result.is_ok(),
-                "expected verified write to succeed on attempt 3, got {:?}",
-                result
+                "expected verified write to succeed on attempt 3, got {result:?}"
             );
         });
     }
@@ -603,7 +602,7 @@ mod tests {
                     assert_eq!(expected, 0x1234_5678);
                     assert_eq!(actual, 0xDEAD_BEEF);
                 }
-                other => panic!("expected VerifyFailed, got {:?}", other),
+                other => panic!("expected VerifyFailed, got {other:?}"),
             }
         });
     }
@@ -704,7 +703,7 @@ mod tests {
                     assert_eq!(expected, 0x1234_5678);
                     assert_eq!(actual, 0xDEAD_BEEF);
                 }
-                other => panic!("expected VerifyFailed, got {:?}", other),
+                other => panic!("expected VerifyFailed, got {other:?}"),
             }
         });
     }
