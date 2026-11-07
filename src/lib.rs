@@ -2,6 +2,11 @@
 //! and current-limit domains, and the SPI access layer.
 
 #![no_std]
+// Lints that fire only in test code; production code is still checked for them.
+#![cfg_attr(
+    test,
+    allow(clippy::decimal_bitwise_operands, clippy::unused_async_trait_impl)
+)]
 #![warn(missing_docs)]
 
 pub mod current_limit;
