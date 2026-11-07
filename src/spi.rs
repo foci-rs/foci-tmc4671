@@ -206,7 +206,8 @@ where
     ///
     /// Writes `sub.sub_addr` to `sub.addr`, then reads `sub.data`.
     pub async fn read_sub_register(&mut self, sub: SubRegister) -> Result<u32, SpiError<E>> {
-        self.write_register(sub.addr, sub.sub_addr as u32).await?;
+        self.write_register(sub.addr, u32::from(sub.sub_addr))
+            .await?;
         self.read_register(sub.data).await
     }
 
@@ -218,7 +219,8 @@ where
         sub: SubRegister,
         value: u32,
     ) -> Result<(), SpiError<E>> {
-        self.write_register(sub.addr, sub.sub_addr as u32).await?;
+        self.write_register(sub.addr, u32::from(sub.sub_addr))
+            .await?;
         self.write_register(sub.data, value).await
     }
 }
