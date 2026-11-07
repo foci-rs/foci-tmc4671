@@ -80,6 +80,7 @@ where
 
     /// Override the retry policy. Affects the `*_verified` methods and
     /// [`Tmc4671Spi::read_register_retried`].
+    #[must_use]
     pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
         self.retry_policy = policy;
         self

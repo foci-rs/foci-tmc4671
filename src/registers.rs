@@ -520,6 +520,7 @@ pub struct MotorTypeNPolePairs {
 
 impl MotorTypeNPolePairs {
     /// Set the motor type.
+    #[must_use]
     pub const fn with_motor_type(self, motor_type: MotorType) -> Self {
         self.with_motor_type_raw(motor_type as u8)
     }
@@ -636,6 +637,7 @@ pub struct ModeRampModeMotion {
 
 impl ModeRampModeMotion {
     /// Set the active motion mode.
+    #[must_use]
     pub const fn with_mode_motion(self, mode: MotionMode) -> Self {
         self.with_mode_motion_raw(mode as u8)
     }
