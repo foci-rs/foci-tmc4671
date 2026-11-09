@@ -251,12 +251,15 @@ where
 
     /// Write a sub-register (write selector address first, then write data).
     ///
-    /// Writes `sub.sub_addr` to `sub.addr`, then writes `value` to `sub.data`.
+    /// Writes `sub.sub_addr` to `sub.addr`, then writes `value` to `sub.data`. Both registers are
+    /// checked before the first frame, so a refused `sub.data` sends nothing.
     pub async fn write_sub_register(
         &mut self,
         sub: SubRegister,
         value: u32,
     ) -> Result<(), SpiError<E>> {
+        write_frame::<E>(sub.addr, u32::from(sub.sub_addr))?;
+        write_frame::<E>(sub.data, value)?;
         self.write_register(sub.addr, u32::from(sub.sub_addr))
             .await?;
         self.write_register(sub.data, value).await
@@ -564,6 +567,23 @@ mod tests {
             assert_eq!(plain, Err(SpiError::LimitRegisterWrite));
             assert_eq!(verified, Err(SpiError::LimitRegisterWrite));
             assert_eq!(aliased, Err(SpiError::LimitRegisterWrite));
+            assert_eq!(spi.inner().write_frame, None);
+        });
+    }
+
+    #[test]
+    fn sub_register_write_with_the_limit_register_as_data_sends_no_selector() {
+        pollster::block_on(async {
+            let mut spi = Tmc4671Spi::new(AsyncFrameMock::default());
+            let sub = SubRegister {
+                data: PID_TORQUE_FLUX_LIMITS,
+                addr: registers::PID_POSITION_TARGET,
+                sub_addr: 3,
+            };
+
+            let result = spi.write_sub_register(sub, 1).await;
+
+            assert_eq!(result, Err(SpiError::LimitRegisterWrite));
             assert_eq!(spi.inner().write_frame, None);
         });
     }
