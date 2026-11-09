@@ -2,13 +2,17 @@
 
 use embedded_hal_async::spi::{Operation, SpiDevice};
 
-use crate::registers::{Register, SubRegister};
+use crate::current_limit::PidTorqueFluxLimit;
+use crate::registers::{PID_TORQUE_FLUX_LIMITS, Register, SubRegister};
 
 /// Errors from TMC4671 SPI communication.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub enum SpiError<E> {
     /// SPI bus error from the underlying driver.
     Bus(E),
+    /// A generic write targeted `PID_TORQUE_FLUX_LIMITS`, which only
+    /// [`Tmc4671Spi::write_torque_flux_limit`] may write. Nothing was sent.
+    LimitRegisterWrite,
     /// Read-back verification failed after write.
     VerifyFailed {
         /// Value the caller wrote or expected to read.
@@ -46,9 +50,23 @@ impl RetryPolicy {
 const READ_PAUSE_NS: u32 = 500;
 
 /// 5-byte write frame: the address with the write flag (`0x80`), then the value big-endian.
-const fn write_frame(reg: Register, value: u32) -> [u8; 5] {
+const fn raw_write_frame(reg: Register, value: u32) -> [u8; 5] {
     let bytes = value.to_be_bytes();
     [reg.addr() | 0x80, bytes[0], bytes[1], bytes[2], bytes[3]]
+}
+
+/// Build the frame for a generic register write.
+///
+/// # Errors
+///
+/// Returns [`SpiError::LimitRegisterWrite`] when `reg` is `PID_TORQUE_FLUX_LIMITS`. That register
+/// is written only through [`Tmc4671Spi::write_torque_flux_limit`], which takes a validated
+/// [`PidTorqueFluxLimit`].
+const fn write_frame<E>(reg: Register, value: u32) -> Result<[u8; 5], SpiError<E>> {
+    if reg.addr() == PID_TORQUE_FLUX_LIMITS.addr() {
+        return Err(SpiError::LimitRegisterWrite);
+    }
+    Ok(raw_write_frame(reg, value))
 }
 
 impl<E> From<E> for SpiError<E> {
@@ -119,7 +137,25 @@ where
     /// Sends a 5-byte frame with the register address `ORed` with `0x80` (write
     /// flag) in byte 0, followed by the value in big-endian order.
     pub async fn write_register(&mut self, reg: Register, value: u32) -> Result<(), SpiError<E>> {
-        self.spi.write(&write_frame(reg, value)).await?;
+        self.spi.write(&write_frame(reg, value)?).await?;
+        Ok(())
+    }
+
+    /// Write `PID_TORQUE_FLUX_LIMITS` with a validated limit.
+    ///
+    /// This is the only write path for that register. [`Self::write_register`] and the other
+    /// generic writers return [`SpiError::LimitRegisterWrite`] when given it, so a raw value, an
+    /// alias or a table-driven write cannot bypass the [`PidTorqueFluxLimit`] domain.
+    pub async fn write_torque_flux_limit(
+        &mut self,
+        limit: PidTorqueFluxLimit,
+    ) -> Result<(), SpiError<E>> {
+        self.spi
+            .write(&raw_write_frame(
+                PID_TORQUE_FLUX_LIMITS,
+                limit.register_value(),
+            ))
+            .await?;
         Ok(())
     }
 
@@ -157,6 +193,7 @@ where
         reg: Register,
         value: u32,
     ) -> Result<(), SpiError<E>> {
+        write_frame::<E>(reg, value)?;
         self.retry(async |spi| {
             spi.write_register(reg, value).await?;
             let actual = spi.read_register(reg).await?;
@@ -239,7 +276,7 @@ where
         reg: Register,
         value: u32,
     ) -> Result<(), SpiError<E>> {
-        embedded_hal::spi::SpiDevice::write(&mut self.spi, &write_frame(reg, value))?;
+        embedded_hal::spi::SpiDevice::write(&mut self.spi, &write_frame(reg, value)?)?;
         Ok(())
     }
 
@@ -494,6 +531,40 @@ mod tests {
                 spi.inner().write_frame,
                 Some([0xE8, 0x12, 0x34, 0x56, 0x78])
             );
+        });
+    }
+
+    #[test]
+    fn torque_flux_limit_write_sends_the_limit_register_frame() {
+        pollster::block_on(async {
+            let mut spi = Tmc4671Spi::new(AsyncFrameMock::default());
+
+            spi.write_torque_flux_limit(PidTorqueFluxLimit::new(0x1234).unwrap())
+                .await
+                .unwrap();
+
+            assert_eq!(
+                spi.inner().write_frame,
+                Some([0xDE, 0x00, 0x00, 0x12, 0x34])
+            );
+        });
+    }
+
+    #[test]
+    fn generic_writes_of_the_limit_register_are_refused_without_sending() {
+        pollster::block_on(async {
+            let mut spi = Tmc4671Spi::new(AsyncFrameMock::default());
+
+            let plain = spi.write_register(PID_TORQUE_FLUX_LIMITS, 0x1234).await;
+            let verified = spi
+                .write_register_verified(PID_TORQUE_FLUX_LIMITS, 0x1234)
+                .await;
+            let aliased = spi.write_register(Register::new(0xDE), 0x1234).await;
+
+            assert_eq!(plain, Err(SpiError::LimitRegisterWrite));
+            assert_eq!(verified, Err(SpiError::LimitRegisterWrite));
+            assert_eq!(aliased, Err(SpiError::LimitRegisterWrite));
+            assert_eq!(spi.inner().write_frame, None);
         });
     }
 
