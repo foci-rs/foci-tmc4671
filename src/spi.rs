@@ -3,7 +3,9 @@
 use embedded_hal_async::spi::{Operation, SpiDevice};
 
 use crate::current_limit::PidTorqueFluxLimit;
-use crate::registers::{PID_TORQUE_FLUX_LIMITS, ReadableRegister, Register, SubRegister};
+use crate::registers::{
+    PID_TORQUE_FLUX_LIMITS, ReadableRegister, Register, STATUS_FLAGS, SubRegister,
+};
 
 /// Errors from TMC4671 SPI communication.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
@@ -18,6 +20,15 @@ pub enum SpiError<E> {
         actual: u32,
     },
 }
+
+/// Proof that the caller may clear `STATUS_FLAGS`.
+///
+/// `STATUS_FLAGS` bits are sticky and clearing them can hide a latched fault, so
+/// [`Tmc4671Spi::clear_status_flags`] takes a permit. The trait carries no behavior: a token type
+/// implements it, and the module that owns the clear's preconditions (for example the fault
+/// interlock) keeps that type's constructor private so only it can issue the permit. Implementing
+/// this trait for another type is a deliberate, reviewable act.
+pub trait StatusClearPermit {}
 
 /// SPI retry behaviour. Applied to the `*_verified` methods and to
 /// [`Tmc4671Spi::read_register_retried`]. Plain `read_register` and
@@ -121,6 +132,19 @@ where
     /// flag) in byte 0, followed by the value in big-endian order.
     pub async fn write_register(&mut self, reg: Register, value: u32) -> Result<(), SpiError<E>> {
         self.spi.write(&write_frame(reg.addr(), value)).await?;
+        Ok(())
+    }
+
+    /// Clear `STATUS_FLAGS` by writing zero.
+    ///
+    /// This is the only write path for that register. The generic writers take a [`Register`],
+    /// which cannot name it, and this method requires a [`StatusClearPermit`], so the caller
+    /// must hold a token minted by code that is responsible for the clear's preconditions.
+    pub async fn clear_status_flags(
+        &mut self,
+        _permit: &impl StatusClearPermit,
+    ) -> Result<(), SpiError<E>> {
+        self.spi.write(&write_frame(STATUS_FLAGS.addr(), 0)).await?;
         Ok(())
     }
 
@@ -519,6 +543,20 @@ mod tests {
                 spi.inner().write_frame,
                 Some([0xE8, 0x12, 0x34, 0x56, 0x78])
             );
+        });
+    }
+
+    struct TestPermit;
+    impl StatusClearPermit for TestPermit {}
+
+    #[test]
+    fn status_flags_clear_writes_zero_to_the_status_flags_frame() {
+        pollster::block_on(async {
+            let mut spi = Tmc4671Spi::new(AsyncFrameMock::default());
+
+            spi.clear_status_flags(&TestPermit).await.unwrap();
+
+            assert_eq!(spi.inner().write_frame, Some([0xFC, 0, 0, 0, 0]));
         });
     }
 
