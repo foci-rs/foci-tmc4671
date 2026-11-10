@@ -1,21 +1,154 @@
 //! TMC4671 register addresses, sub-register selectors, and register layouts.
 
-/// TMC4671 register address.
+/// Address of `PID_TORQUE_FLUX_LIMITS`, with the read/write flag masked off.
+const LIMIT_REGISTER_ADDR: u8 = 0x5E;
+
+/// TMC4671 register address that generic writers may target.
 ///
-/// Wraps a 7-bit register address. Bit 7 is the read/write flag
-/// (set by the SPI codec, not the caller).
+/// Wraps a 7-bit register address. Bit 7 is the read/write flag (set by the SPI codec, not the
+/// caller). The address of `PID_TORQUE_FLUX_LIMITS` is excluded: that register is a
+/// [`LimitRegister`] and is written only through
+/// [`Tmc4671Spi::write_torque_flux_limit`](crate::spi::Tmc4671Spi::write_torque_flux_limit).
+///
+/// ```compile_fail
+/// use foci_tmc4671::registers::PID_TORQUE_FLUX_LIMITS;
+/// use foci_tmc4671::spi::Tmc4671Spi;
+///
+/// async fn stray_write<S: embedded_hal_async::spi::SpiDevice<u8>>(spi: &mut Tmc4671Spi<S>) {
+///     let _ = spi.write_register(PID_TORQUE_FLUX_LIMITS, 0x1234).await;
+/// }
+/// ```
+///
+/// A write to an ordinary register compiles:
+///
+/// ```
+/// use foci_tmc4671::registers::PID_POSITION_TARGET;
+/// use foci_tmc4671::spi::Tmc4671Spi;
+///
+/// async fn write<S: embedded_hal_async::spi::SpiDevice<u8>>(spi: &mut Tmc4671Spi<S>) {
+///     let _ = spi.write_register(PID_POSITION_TARGET, 0x1234).await;
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub struct Register(u8);
 
+/// An address that names `PID_TORQUE_FLUX_LIMITS` was given where a generic writable register
+/// is required.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+pub struct LimitRegisterAddress;
+
 impl Register {
-    /// Creates a new register address, masking off the read/write flag bit.
+    /// Creates a register address for a constant, masking off the read/write flag bit.
+    ///
+    /// Intended for `const` items: a limit-register address fails const evaluation, so it is a
+    /// compile error there. Use [`Self::try_new`] for an address that is only known at run time.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `addr` names `PID_TORQUE_FLUX_LIMITS` (`0x5E` or its write alias `0xDE`).
     pub const fn new(addr: u8) -> Self {
-        Self(addr & 0x7F)
+        match Self::try_new(addr) {
+            Ok(reg) => reg,
+            Err(_) => panic!("PID_TORQUE_FLUX_LIMITS is not a generic register"),
+        }
+    }
+
+    /// Creates a register address from a run-time value, masking off the read/write flag bit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LimitRegisterAddress`] when `addr` names `PID_TORQUE_FLUX_LIMITS`.
+    pub const fn try_new(addr: u8) -> Result<Self, LimitRegisterAddress> {
+        let addr = addr & 0x7F;
+        if addr == LIMIT_REGISTER_ADDR {
+            Err(LimitRegisterAddress)
+        } else {
+            Ok(Self(addr))
+        }
     }
 
     /// Returns the 7-bit register address.
     pub const fn addr(self) -> u8 {
         self.0
+    }
+}
+
+/// The `PID_TORQUE_FLUX_LIMITS` register.
+///
+/// Readable like any register, but it is not a [`Register`], so no generic writer accepts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+pub struct LimitRegister(());
+
+impl LimitRegister {
+    /// Returns the 7-bit register address.
+    pub const fn addr(self) -> u8 {
+        LIMIT_REGISTER_ADDR
+    }
+}
+
+/// Any register address, for reads of an address only known at run time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+pub enum AnyRegister {
+    /// A register generic writers may target.
+    Generic(Register),
+    /// `PID_TORQUE_FLUX_LIMITS`.
+    Limit(LimitRegister),
+}
+
+impl AnyRegister {
+    /// Classifies a run-time address, masking off the read/write flag bit.
+    pub const fn from_addr(addr: u8) -> Self {
+        match Register::try_new(addr) {
+            Ok(reg) => Self::Generic(reg),
+            Err(_) => Self::Limit(PID_TORQUE_FLUX_LIMITS),
+        }
+    }
+}
+
+impl From<Register> for AnyRegister {
+    fn from(reg: Register) -> Self {
+        Self::Generic(reg)
+    }
+}
+
+impl From<LimitRegister> for AnyRegister {
+    fn from(reg: LimitRegister) -> Self {
+        Self::Limit(reg)
+    }
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::Register {}
+    impl Sealed for super::LimitRegister {}
+    impl Sealed for super::AnyRegister {}
+}
+
+/// A register address that may be read: every [`Register`], the [`LimitRegister`], and
+/// [`AnyRegister`]. Sealed, so the set of readable address types stays fixed.
+pub trait ReadableRegister: sealed::Sealed + Copy {
+    /// Returns the 7-bit register address.
+    fn read_addr(self) -> u8;
+}
+
+impl ReadableRegister for Register {
+    fn read_addr(self) -> u8 {
+        self.addr()
+    }
+}
+
+impl ReadableRegister for LimitRegister {
+    fn read_addr(self) -> u8 {
+        self.addr()
+    }
+}
+
+impl ReadableRegister for AnyRegister {
+    fn read_addr(self) -> u8 {
+        match self {
+            Self::Generic(reg) => reg.addr(),
+            Self::Limit(reg) => reg.addr(),
+        }
     }
 }
 
@@ -216,7 +349,7 @@ pub const PID_TORQUE_FLUX_TARGET_DDT_LIMITS: Register = Register::new(0x5C);
 /// PID output UQ and UD limits.
 pub const PIDOUT_UQ_UD_LIMITS: Register = Register::new(0x5D);
 /// PID torque and flux limits.
-pub const PID_TORQUE_FLUX_LIMITS: Register = Register::new(0x5E);
+pub const PID_TORQUE_FLUX_LIMITS: LimitRegister = LimitRegister(());
 /// PID acceleration limit.
 pub const PID_ACCELERATION_LIMIT: Register = Register::new(0x5F);
 /// PID velocity limit.
@@ -868,6 +1001,31 @@ mod tests {
     fn register_addr_masking() {
         let r = Register::new(0xFF);
         assert_eq!(r.addr(), 0x7F);
+    }
+
+    #[test]
+    fn a_run_time_address_naming_the_limit_register_is_not_a_generic_register() {
+        assert_eq!(Register::try_new(0x5E), Err(LimitRegisterAddress));
+        assert_eq!(Register::try_new(0xDE), Err(LimitRegisterAddress));
+        assert_eq!(Register::try_new(0x5D), Ok(PIDOUT_UQ_UD_LIMITS));
+        assert_eq!(Register::try_new(0x5F), Ok(PID_ACCELERATION_LIMIT));
+    }
+
+    #[test]
+    fn any_register_classifies_the_limit_register_and_its_write_alias() {
+        assert_eq!(
+            AnyRegister::from_addr(0x5E),
+            AnyRegister::Limit(PID_TORQUE_FLUX_LIMITS)
+        );
+        assert_eq!(
+            AnyRegister::from_addr(0xDE),
+            AnyRegister::Limit(PID_TORQUE_FLUX_LIMITS)
+        );
+        assert_eq!(
+            AnyRegister::from_addr(0x68),
+            AnyRegister::Generic(PID_POSITION_TARGET)
+        );
+        assert_eq!(AnyRegister::from_addr(0xDE).read_addr(), 0x5E);
     }
 
     #[test]
